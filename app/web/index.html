@@ -3,11 +3,15 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#102a43">
+    <meta name="theme-color" content="#175ea8">
+    <meta name="apple-mobile-web-app-title" content="Propostas">
     <title>Gerador de Propostas</title>
+    <link rel="icon" href="/static/favicon.ico" sizes="32x32">
+    <link rel="icon" type="image/png" href="/static/icon-192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" sizes="180x180">
+    <link rel="manifest" href="/static/manifest.webmanifest">
     <link rel="stylesheet" href="/static/styles.css">
     <script src="/static/app.js" defer></script>
-    <script src="/static/teams.js" defer></script>
   </head>
   <body>
     <main>
@@ -62,10 +66,6 @@
             <span class="button-label">Gerar e baixar PDF</span>
           </button>
         </form>
-        <div id="teams-actions" hidden>
-          <p id="teams-status" class="subtitle">Se o download não iniciar, abra no navegador.</p>
-          <a id="open-browser" href="/" target="_blank" rel="noopener noreferrer">Abrir no navegador</a>
-        </div>
       </section>
     </main>
   </body>

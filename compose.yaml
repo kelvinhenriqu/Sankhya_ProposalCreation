@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/kelvinhenriqu/sankhya-proposal-creation:0.1.6
+    image: ghcr.io/kelvinhenriqu/sankhya-proposal-creation:0.1.8
     restart: unless-stopped
     init: true
     env_file:

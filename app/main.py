@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Sankhya GetProposal API",
-    version="0.1.6",
+    version="0.1.8",
     lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory=_WEB_DIR / "static"), name="static")
@@ -62,6 +62,11 @@ async def health() -> dict[str, str]:
 @app.get("/", include_in_schema=False)
 async def web_interface() -> FileResponse:
     return FileResponse(_WEB_DIR / "index.html")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> FileResponse:
+    return FileResponse(_WEB_DIR / "static" / "favicon.ico", media_type="image/vnd.microsoft.icon")
 
 
 @app.exception_handler(SankhyaUnavailableError)
