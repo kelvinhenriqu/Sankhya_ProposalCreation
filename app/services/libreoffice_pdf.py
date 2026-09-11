@@ -18,13 +18,19 @@ class LibreOfficePdfConverter:
     def render_many(self, jobs: list[WordRenderJob]) -> None:
         for job in jobs:
             if job.repeating_section is None:
-                self._renderer.render(job.template, job.working_document, job.fields)
+                self._renderer.render(
+                    job.template,
+                    job.working_document,
+                    job.fields,
+                    font_size_points=job.field_font_size_points,
+                )
             else:
                 self._renderer.render_repeating(
                     job.template,
                     job.working_document,
                     job.repeating_section,
                     job.repeating_rows or [],
+                    font_size_points=job.field_font_size_points,
                 )
 
         with tempfile.TemporaryDirectory(prefix="libreoffice-profile-") as profile_name:
@@ -92,4 +98,3 @@ class LibreOfficePdfConverter:
         raise PdfGenerationError(
             "LibreOffice não encontrado. Configure LIBREOFFICE_EXECUTABLE"
         )
-

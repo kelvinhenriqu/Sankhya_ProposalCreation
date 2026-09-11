@@ -99,8 +99,118 @@ def test_ooxml_renderer_duplicates_items_without_word(tmp_path: Path) -> None:
     with zipfile.ZipFile(destination) as package:
         root = etree.fromstring(package.read("word/document.xml"))
     namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
-    item_values = root.xpath(
-        ".//w:sdt[w:sdtPr/w:tag[@w:val='Item']]/w:sdtContent//w:t/text()",
-        namespaces=namespace,
-    )
+    assert not root.xpath(".//w:sdt", namespaces=namespace)
+    item_runs = [
+        run
+        for run in root.xpath(".//w:r", namespaces=namespace)
+        if "".join(run.xpath("./w:t/text()", namespaces=namespace)) in {"1", "2"}
+    ]
+    item_values = [
+        "".join(run.xpath("./w:t/text()", namespaces=namespace)) for run in item_runs
+    ]
     assert item_values == ["1", "2"]
+
+    assert len(item_runs) == 2
+    for run in item_runs:
+        fonts = run.find("w:rPr/w:rFonts", namespaces=namespace)
+        size = run.find("w:rPr/w:sz", namespaces=namespace)
+        complex_size = run.find("w:rPr/w:szCs", namespaces=namespace)
+        assert fonts is not None
+        assert size is not None
+        assert complex_size is not None
+        for attribute in ("ascii", "hAnsi", "eastAsia", "cs"):
+            assert fonts.get(f"{{{namespace['w']}}}{attribute}") == "Liberation Sans"
+        assert size.get(f"{{{namespace['w']}}}val") == "16"
+        assert complex_size.get(f"{{{namespace['w']}}}val") == "16"
+
+
+def test_ooxml_renderer_uses_paragraphs_for_multiline_description(tmp_path: Path) -> None:
+    destination = tmp_path / "Itens.docx"
+    DocxContentControlRenderer().render_repeating(
+        Path("Templates/Itens.docx"),
+        destination,
+        "Itens",
+        [{"Descricao": "AAA\n- BBB\n- CCC"}],
+    )
+
+    with zipfile.ZipFile(destination) as package:
+        root = etree.fromstring(package.read("word/document.xml"))
+    namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    assert not root.xpath(".//w:sdt", namespaces=namespace)
+    expected_lines = {"AAA", "- BBB", "- CCC"}
+    paragraphs = [
+        paragraph
+        for paragraph in root.xpath(".//w:p", namespaces=namespace)
+        if "".join(paragraph.xpath(".//w:t/text()", namespaces=namespace))
+        in expected_lines
+    ]
+    assert ["".join(p.xpath(".//w:t/text()", namespaces=namespace)) for p in paragraphs] == [
+        "AAA",
+        "- BBB",
+        "- CCC",
+    ]
+    assert not any(p.xpath(".//w:br", namespaces=namespace) for p in paragraphs)
+
+
+def test_ooxml_renderer_forces_header_field_font_and_size(tmp_path: Path) -> None:
+    destination = tmp_path / "Cabecalho.docx"
+    DocxContentControlRenderer().render(
+        Path("Templates/Cabecalho.docx"),
+        destination,
+        {"Vendedor": "VENDEDOR TESTE"},
+    )
+
+    with zipfile.ZipFile(destination) as package:
+        root = etree.fromstring(package.read("word/document.xml"))
+    namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    assert not root.xpath(".//w:sdt", namespaces=namespace)
+    runs = [
+        run
+        for run in root.xpath(".//w:r", namespaces=namespace)
+        if "".join(run.xpath("./w:t/text()", namespaces=namespace)) == "VENDEDOR TESTE"
+    ]
+    assert len(runs) == 1
+    run = runs[0]
+    paragraph = run.getparent()
+    properties = [run.find("w:rPr", namespaces=namespace)]
+    if paragraph.tag == f"{{{namespace['w']}}}p":
+        properties.append(paragraph.find("w:pPr/w:rPr", namespaces=namespace))
+    properties = [properties_node for properties_node in properties if properties_node is not None]
+    assert properties
+    for run_properties in properties:
+        fonts = run_properties.find("w:rFonts", namespaces=namespace)
+        size = run_properties.find("w:sz", namespaces=namespace)
+        complex_size = run_properties.find("w:szCs", namespaces=namespace)
+        assert fonts is not None
+        assert size is not None
+        assert complex_size is not None
+        for attribute in ("ascii", "hAnsi", "eastAsia", "cs"):
+            assert fonts.get(f"{{{namespace['w']}}}{attribute}") == "Liberation Sans"
+        assert size.get(f"{{{namespace['w']}}}val") == "16"
+        assert complex_size.get(f"{{{namespace['w']}}}val") == "16"
+
+
+def test_ooxml_renderer_uses_12_points_for_terms_fields(tmp_path: Path) -> None:
+    destination = tmp_path / "Condicoes.docx"
+    DocxContentControlRenderer().render(
+        Path("Templates/Condicoes.docx"),
+        destination,
+        {"CondicaoPagamento": "28 DIAS"},
+        font_size_points=12,
+    )
+
+    with zipfile.ZipFile(destination) as package:
+        root = etree.fromstring(package.read("word/document.xml"))
+    namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    runs = [
+        run
+        for run in root.xpath(".//w:r", namespaces=namespace)
+        if "".join(run.xpath("./w:t/text()", namespaces=namespace)) == "28 DIAS"
+    ]
+    assert len(runs) == 1
+    size = runs[0].find("w:rPr/w:sz", namespaces=namespace)
+    complex_size = runs[0].find("w:rPr/w:szCs", namespaces=namespace)
+    assert size is not None
+    assert complex_size is not None
+    assert size.get(f"{{{namespace['w']}}}val") == "24"
+    assert complex_size.get(f"{{{namespace['w']}}}val") == "24"

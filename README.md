@@ -126,6 +126,19 @@ docker compose ps
 docker compose logs -f api
 ```
 
+Imagem publicada no GitHub Container Registry:
+
+```text
+ghcr.io/kelvinhenriqu/sankhya-proposal-creation:latest
+```
+
+Em um servidor que apenas consumirá a imagem:
+
+```powershell
+docker pull ghcr.io/kelvinhenriqu/sankhya-proposal-creation:latest
+docker compose up -d
+```
+
 A interface fica em `http://localhost:8000/`. Para publicar em outra porta:
 
 ```powershell
@@ -133,7 +146,15 @@ $env:APP_PORT = "8080"
 docker compose up --build -d
 ```
 
-O Compose monta `./Templates` em `/app/Templates` como somente leitura. Documentos intermediários, PDFs e o perfil isolado do LibreOffice ficam no `tmpfs` `/tmp` e desaparecem quando o container é encerrado. A aplicação roda como usuário não-root, com filesystem somente leitura, healthcheck e um worker de conversão.
+Os templates não são versionados e também não são incorporados na imagem Docker. Por padrão, o Compose monta a pasta local ignorada `./Templates` em `/app/Templates` como somente leitura. Em produção, indique uma pasta privada do servidor no `.env`:
+
+```env
+TEMPLATES_HOST_DIR=/opt/sankhya-proposal/templates
+```
+
+Copie para essa pasta privada `Cabecalho.docx`, `Itens.docx`, `Condicoes.docx` e `Dados.xlsx`. Alterações feitas nos arquivos do host ficam disponíveis ao container sem reconstruir a imagem. Mantenha backup separado e controle de acesso nessa pasta.
+
+Documentos intermediários, PDFs e o perfil isolado do LibreOffice ficam no `tmpfs` `/tmp` e desaparecem quando o container é encerrado. A aplicação roda como usuário não-root, com filesystem somente leitura, healthcheck e um worker de conversão.
 
 Para encerrar:
 

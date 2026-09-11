@@ -19,6 +19,7 @@ class WordRenderJob:
     fields: dict[str, Any] = field(default_factory=dict)
     repeating_section: str | None = None
     repeating_rows: list[dict[str, Any]] | None = None
+    field_font_size_points: float = 8
 
 
 class WordPdfConverter:
@@ -53,12 +54,17 @@ class WordPdfConverter:
                         AddToRecentFiles=False,
                     )
                     try:
-                        self._fill_fields(document, job.fields)
+                        self._fill_fields(
+                            document,
+                            job.fields,
+                            job.field_font_size_points,
+                        )
                         if job.repeating_section is not None:
                             self._fill_repeating_section(
                                 document,
                                 job.repeating_section,
                                 job.repeating_rows or [],
+                                job.field_font_size_points,
                             )
                         document.Save()
                         document.ExportAsFixedFormat(str(job.output_pdf.resolve()), 17)
@@ -79,12 +85,17 @@ class WordPdfConverter:
                 pythoncom.CoUninitialize()
 
     @classmethod
-    def _fill_fields(cls, document: Any, fields: dict[str, Any]) -> None:
+    def _fill_fields(
+        cls,
+        document: Any,
+        fields: dict[str, Any],
+        font_size_points: float,
+    ) -> None:
         for name, value in fields.items():
             control = cls._find_control(document.ContentControls, name)
             if control is None:
                 raise PdfGenerationError(f"Controle '{name}' não encontrado no template")
-            cls._set_text(control, value)
+            cls._set_text(control, value, font_size_points)
 
     @classmethod
     def _fill_repeating_section(
@@ -92,6 +103,7 @@ class WordPdfConverter:
         document: Any,
         section_name: str,
         rows: list[dict[str, Any]],
+        font_size_points: float,
     ) -> None:
         section = cls._find_control(document.ContentControls, section_name)
         if section is None:
@@ -101,7 +113,11 @@ class WordPdfConverter:
                 section.RepeatingSectionItems.Item(1).Delete()
             except Exception:
                 for index in range(1, section.RepeatingSectionItems.Item(1).Range.ContentControls.Count + 1):
-                    cls._set_text(section.RepeatingSectionItems.Item(1).Range.ContentControls.Item(index), "")
+                    cls._set_text(
+                        section.RepeatingSectionItems.Item(1).Range.ContentControls.Item(index),
+                        "",
+                        font_size_points,
+                    )
             return
 
         while section.RepeatingSectionItems.Count < len(rows):
@@ -117,7 +133,7 @@ class WordPdfConverter:
                     raise PdfGenerationError(
                         f"Controle repetitivo '{name}' não encontrado no template"
                     )
-                cls._set_text(control, value)
+                cls._set_text(control, value, font_size_points)
 
     @staticmethod
     def _find_control(controls: Any, name: str) -> Any | None:
@@ -128,7 +144,7 @@ class WordPdfConverter:
         return None
 
     @staticmethod
-    def _set_text(control: Any, value: Any) -> None:
+    def _set_text(control: Any, value: Any, font_size_points: float) -> None:
         try:
             control.LockContents = False
             control.LockContentControl = False
@@ -136,3 +152,4 @@ class WordPdfConverter:
             pass
         text = "" if value is None else str(value)
         control.Range.Text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\v")
+        control.Range.Font.Size = font_size_points

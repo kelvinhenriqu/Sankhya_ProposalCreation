@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: sankhya-proposal-api:local
+    image: ghcr.io/kelvinhenriqu/sankhya-proposal-creation:0.1.5
     restart: unless-stopped
     init: true
     env_file:
@@ -19,7 +19,10 @@ services:
     ports:
       - "${APP_PORT:-8000}:8000"
     volumes:
-      - ./Templates:/app/Templates:ro
+      - type: bind
+        source: ${TEMPLATES_HOST_DIR:-./Templates}
+        target: /app/Templates
+        read_only: true
     read_only: true
     tmpfs:
       - /tmp:size=512m,mode=1777

@@ -97,6 +97,7 @@ class ProposalPdfService:
                         working_document=terms_docx,
                         output_pdf=terms_pdf,
                         fields=self._terms_fields(proposal),
+                        field_font_size_points=12,
                     ),
                 ]
             )

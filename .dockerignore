@@ -11,6 +11,7 @@ __pycache__
 *.pdf
 *.msi
 tests
+Templates
 MIGRATION_ANALYSIS.md
 PA_*.json
 start.ps1
