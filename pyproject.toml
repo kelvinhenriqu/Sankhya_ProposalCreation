@@ -1,0 +1,26 @@
+[project]
+name = "sankhya-get-proposal"
+version = "0.1.0"
+description = "API FastAPI equivalente ao flow PA_Sankhya_GetProposal"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.116,<1",
+    "httpx>=0.28,<1",
+    "lxml>=6,<7",
+    "openpyxl>=3.1,<4",
+    "pydantic-settings>=2.10,<3",
+    "pypdf>=6,<7",
+    "pywin32>=311; sys_platform == 'win32'",
+    "uvicorn[standard]>=0.35,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4,<9",
+    "pytest-asyncio>=1.1,<2",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+asyncio_mode = "auto"
+testpaths = ["tests"]

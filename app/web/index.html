@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#102a43">
+    <title>Gerador de Propostas</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <section aria-labelledby="page-title">
+        <h1 id="page-title">Gerar proposta</h1>
+        <p class="subtitle">Preencha os dados e clique em gerar.</p>
+
+        <form id="proposal-form" novalidate>
+          <div class="field">
+            <label for="proposal-number">Número da proposta</label>
+            <input
+              id="proposal-number"
+              name="proposal-number"
+              type="number"
+              inputmode="numeric"
+              min="1"
+              step="1"
+              placeholder="Ex.: 123456"
+              autocomplete="off"
+              required
+              autofocus
+            >
+          </div>
+
+          <div class="field">
+            <label for="responsible">Responsável</label>
+            <input
+              id="responsible"
+              name="responsible"
+              type="text"
+              maxlength="150"
+              autocomplete="name"
+              required
+            >
+          </div>
+
+          <div class="field">
+            <label for="client-email">E-mail do cliente</label>
+            <input
+              id="client-email"
+              name="client-email"
+              type="text"
+              maxlength="254"
+              autocomplete="off"
+              required
+            >
+          </div>
+
+          <div id="message" class="message" role="status" aria-live="polite" hidden></div>
+
+          <button id="submit-button" type="submit">
+            <span class="button-label">Gerar e baixar PDF</span>
+          </button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

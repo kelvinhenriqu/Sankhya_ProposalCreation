@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.venv
+.uv-cache
+.uv-python
+.pytest_cache
+__pycache__
+*.py[cod]
+*.log
+*.pdf
+*.msi
+tests
+MIGRATION_ANALYSIS.md
+PA_*.json
+start.ps1

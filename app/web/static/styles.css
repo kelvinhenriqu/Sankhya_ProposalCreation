@@ -1,0 +1,119 @@
+:root {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #222;
+  background: #f5f5f5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  width: 100%;
+  max-width: 520px;
+  margin: 64px auto;
+  padding: 0 20px;
+}
+
+section {
+  padding: 28px;
+  background: #fff;
+  border: 1px solid #ddd;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 0 0 28px;
+  color: #666;
+  font-size: 14px;
+}
+
+.field {
+  margin-bottom: 18px;
+}
+
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+input {
+  width: 100%;
+  height: 42px;
+  padding: 8px 10px;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  background: #fff;
+  color: #222;
+  font: inherit;
+}
+
+input:focus {
+  border-color: #175ea8;
+  outline: 2px solid rgba(23, 94, 168, 0.18);
+}
+
+input[aria-invalid="true"] {
+  border-color: #b42318;
+}
+
+button {
+  width: 100%;
+  height: 44px;
+  border: 0;
+  border-radius: 3px;
+  background: #175ea8;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+button:hover:not(:disabled) {
+  background: #124d89;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.message {
+  margin: 0 0 18px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+.message.error {
+  color: #8a1c13;
+  background: #fff4f3;
+  border-color: #e5aaa5;
+}
+
+.message.success {
+  color: #17633a;
+  background: #f0faf4;
+  border-color: #a8d5bb;
+}
+
+@media (max-width: 560px) {
+  main {
+    margin: 24px auto;
+  }
+
+  section {
+    padding: 22px;
+  }
+}

@@ -1,0 +1,2 @@
+"""Sankhya GetProposal application."""
+
