@@ -7,6 +7,7 @@
     <title>Gerador de Propostas</title>
     <link rel="stylesheet" href="/static/styles.css">
     <script src="/static/app.js" defer></script>
+    <script src="/static/teams.js" defer></script>
   </head>
   <body>
     <main>
@@ -61,6 +62,10 @@
             <span class="button-label">Gerar e baixar PDF</span>
           </button>
         </form>
+        <div id="teams-actions" hidden>
+          <p id="teams-status" class="subtitle">Se o download não iniciar, abra no navegador.</p>
+          <a id="open-browser" href="/" target="_blank" rel="noopener noreferrer">Abrir no navegador</a>
+        </div>
       </section>
     </main>
   </body>
