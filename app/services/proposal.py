@@ -40,12 +40,18 @@ class ProposalService:
         self._client = client
 
     async def get_proposal(self, proposal_id: int) -> Proposal:
-        item_rows = await self._load_items(proposal_id)
-        items = [self._normalize_item(row) for row in item_rows]
-        enriched_items = await self._enrich_items(items)
-
         header_rows = await self._load_header(proposal_id)
         header = self._normalize_header(header_rows[0]) if header_rows else None
+
+        item_rows = await self._load_items(proposal_id)
+        items = [self._normalize_item(row) for row in item_rows]
+        if header is not None and str(header.CodTipoOperacao).strip() == "997":
+            enriched_items = [
+                item.model_copy(update={"CodigoTemplate": "", "Homepage": "", "PdfBase64": ""})
+                for item in items
+            ]
+        else:
+            enriched_items = await self._enrich_items(items)
 
         seller_rows = await self._load_sellers(proposal_id)
         seller_name = self._seller_name(seller_rows)

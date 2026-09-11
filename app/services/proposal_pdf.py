@@ -65,6 +65,7 @@ class ProposalPdfService:
         if proposal.Cabecalho is None:
             raise PdfGenerationError("A proposta não possui cabeçalho")
 
+        is_service = self._text(proposal.Cabecalho.CodTipoOperacao) == "997"
         seller = self._sellers.find(proposal.Vendedor)
         with tempfile.TemporaryDirectory(prefix="proposal-") as temp_name:
             temp = Path(temp_name)
@@ -86,11 +87,17 @@ class ProposalPdfService:
                         ),
                     ),
                     WordRenderJob(
-                        template=self._templates_dir / "Itens.docx",
+                        template=self._templates_dir / ("Itens_servico.docx" if is_service else "Itens.docx"),
                         working_document=items_docx,
                         output_pdf=items_pdf,
                         repeating_section="Itens",
-                        repeating_rows=[self._item_fields(item) for item in proposal.Itens],
+                        repeating_rows=[
+                            self._item_fields(
+                                item,
+                                is_service=is_service,
+                            )
+                            for item in proposal.Itens
+                        ],
                     ),
                     WordRenderJob(
                         template=self._templates_dir / "Condicoes.docx",
@@ -136,21 +143,25 @@ class ProposalPdfService:
         }
 
     @staticmethod
-    def _item_fields(item: ProposalItem) -> dict[str, str]:
+    def _item_fields(item: ProposalItem, *, is_service: bool = False) -> dict[str, str]:
         description = ProposalPdfService._text(item.DescricaoCompleta).replace(" - ", "\n- ")
-        return {
+        fields = {
             "Item": ProposalPdfService._text(item.Sequencia),
             "Quantidade": f"{ProposalPdfService._format_number(item.Quantidade, 2, False)} UN",
             "Descricao": f"{description}\n\n",
             "ValorUnitario": f"R$ {ProposalPdfService._format_number(item.ValorUnitLiquido, 2, True)}",
             "ValorTotal": f"R$ {ProposalPdfService._format_number(item.ValorTotalLiquido, 2, True)}",
             "TotalImpostos": f"R$ {ProposalPdfService._format_number(item.ValorTotalIPI, 2, True)}",
-            "Codigo": ProposalPdfService._text(item.CodigoTemplate),
+            "Codigo": "" if is_service else ProposalPdfService._text(item.CodigoTemplate),
             "Entrega": ProposalPdfService._text(item.PrevisaoEntrega),
             "NCM": ProposalPdfService._text(item.NCM),
             "IPI": f"{ProposalPdfService._format_number(item.AliqIPI, 2, False)}%",
             "ICMS": f"{ProposalPdfService._format_number(item.AliqICMS, 2, False)}%",
         }
+        if is_service:
+            for name in ("Codigo", "NCM", "IPI", "ICMS"):
+                fields.pop(name)
+        return fields
 
     @staticmethod
     def _terms_fields(proposal: Proposal) -> dict[str, str]:

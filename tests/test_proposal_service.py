@@ -29,7 +29,9 @@ def item_row(product_code: str, sequence: str = "1") -> list[Any]:
 
 
 def header_row() -> list[Any]:
-    return [str(index) for index in range(32)]
+    row = [str(index) for index in range(32)]
+    row[4] = "1000"
+    return row
 
 
 class FakeClient:
@@ -123,3 +125,32 @@ def test_item_mapping_preserves_power_automate_indexes() -> None:
     assert item.ValorUnitIPI == "105.00"  # índice 34 / VLRNOTA no flow original
     assert item.CodigoTemplate == "TPL"
 
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation_code", ["997", 997])
+async def test_service_proposal_skips_product_lookup_and_attachments(operation_code: Any) -> None:
+    class ServiceClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.entities: list[str] = []
+
+        async def request_service(self, service_name: str, body: dict[str, Any], *, query: str = "") -> dict[str, Any]:
+            self.entities.append(body["entityName"])
+            payload = await super().request_service(service_name, body, query=query)
+            if body["entityName"] == "MemoriaCalculoCab":
+                payload["responseBody"]["result"][0][4] = operation_code
+            return payload
+
+        async def get_product(self, product_code: Any) -> dict[str, Any]:
+            raise AssertionError("Services must not use the product endpoint")
+
+    client = ServiceClient()
+    proposal = await ProposalService(client).get_proposal(21240)
+
+    assert client.entities == ["MemoriaCalculoCab", "MemoriaCalculoIte", "MemoriaCalculoVen"]
+    assert len(proposal.Itens) == 2
+    assert proposal.Itens[0].ValorTotalLiquido == "200.00"
+    assert proposal.Itens[0].DescricaoCompleta == item_row("10")[37]
+    assert all(item.CodigoTemplate == item.Homepage == item.PdfBase64 == "" for item in proposal.Itens)
+    assert client.attachment_loads == []
+    assert client.downloads == []
