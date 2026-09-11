@@ -90,6 +90,9 @@ class ProposalPdfService:
                         template=self._templates_dir / ("Itens_servico.docx" if is_service else "Itens.docx"),
                         working_document=items_docx,
                         output_pdf=items_pdf,
+                        fields={
+                            "TotalImpostos_Proposta": f"R$ {self._format_number(proposal.Cabecalho.ValorNota, 2, True)}",
+                        },
                         repeating_section="Itens",
                         repeating_rows=[
                             self._item_fields(

@@ -30,6 +30,7 @@ class LibreOfficePdfConverter:
                     job.working_document,
                     job.repeating_section,
                     job.repeating_rows or [],
+                    fields=job.fields,
                     font_size_points=job.field_font_size_points,
                 )
 

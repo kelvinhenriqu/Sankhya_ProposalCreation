@@ -49,6 +49,7 @@ class DocxContentControlRenderer:
         section_name: str,
         rows: list[dict[str, Any]],
         *,
+        fields: dict[str, Any] | None = None,
         font_size_points: float = FIELD_FONT_SIZE_POINTS,
     ) -> None:
         root, entries = self._read(template)
@@ -84,6 +85,16 @@ class DocxContentControlRenderer:
                     size_half_points=size_half_points,
                 )
             content.insert(position + offset, item)
+        for name, value in (fields or {}).items():
+            control = self._find_control(root, name)
+            if control is None:
+                raise PdfGenerationError(f"Controle '{name}' ausente em {template.name}")
+            self._set_text(control, self._text(value))
+            self._set_direct_format(
+                control,
+                font_family=FIELD_FONT_FAMILY,
+                size_half_points=size_half_points,
+            )
         self._unwrap_content_controls(root)
         self._write(destination, root, entries)
 
