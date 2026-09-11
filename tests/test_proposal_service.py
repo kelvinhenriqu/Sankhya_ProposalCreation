@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 
 from app.services.proposal import ProposalService
+from app.core.errors import SankhyaResponseError
 
 
 def item_row(product_code: str, sequence: str = "1") -> list[Any]:
@@ -128,7 +129,7 @@ def test_item_mapping_preserves_power_automate_indexes() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("operation_code", ["997", 997])
-async def test_service_proposal_skips_product_lookup_and_attachments(operation_code: Any) -> None:
+async def test_service_proposal_without_attachments_skips_product_lookup(operation_code: Any) -> None:
     class ServiceClient(FakeClient):
         def __init__(self) -> None:
             super().__init__()
@@ -136,6 +137,8 @@ async def test_service_proposal_skips_product_lookup_and_attachments(operation_c
 
         async def request_service(self, service_name: str, body: dict[str, Any], *, query: str = "") -> dict[str, Any]:
             self.entities.append(body["entityName"])
+            if body["entityName"] == "AnexoSistema":
+                return {"responseBody": {"result": []}}
             payload = await super().request_service(service_name, body, query=query)
             if body["entityName"] == "MemoriaCalculoCab":
                 payload["responseBody"]["result"][0][4] = operation_code
@@ -147,10 +150,62 @@ async def test_service_proposal_skips_product_lookup_and_attachments(operation_c
     client = ServiceClient()
     proposal = await ProposalService(client).get_proposal(21240)
 
-    assert client.entities == ["MemoriaCalculoCab", "MemoriaCalculoIte", "MemoriaCalculoVen"]
+    assert client.entities == ["MemoriaCalculoCab", "MemoriaCalculoIte", "AnexoSistema", "AnexoSistema", "MemoriaCalculoVen"]
     assert len(proposal.Itens) == 2
     assert proposal.Itens[0].ValorTotalLiquido == "200.00"
     assert proposal.Itens[0].DescricaoCompleta == item_row("10")[37]
     assert all(item.CodigoTemplate == item.Homepage == item.PdfBase64 == "" for item in proposal.Itens)
     assert client.attachment_loads == []
+    assert client.downloads == []
+
+
+class ServiceAttachmentClient(FakeClient):
+    def __init__(self, key: str | None = "ARQUIVOANEXO123") -> None:
+        super().__init__()
+        self.key = key
+        self.requests: list[tuple[str, dict[str, Any]]] = []
+
+    async def request_service(self, service_name: str, body: dict[str, Any], *, query: str = "") -> dict[str, Any]:
+        self.requests.append((service_name, body))
+        if service_name == "DatasetSP.loadRecords":
+            return {"responseBody": {"result": [
+                ["259", "Servico", "skip", "nota.pdf", "outro"],
+                ["260", "Servico", "skip", "arquivo.docx", "descricao"],
+                ["261", "Servico", "571949a7693f9ddeac077ac89e5bf0e2", "INO-FMC-INNOVX.PDF", " Descricao "],
+            ]}}
+        assert service_name == "AnexoSistemaSP.baixar"
+        return {"responseBody": {"chave": {"valor": self.key}}}
+
+    async def get_product(self, product_code: Any) -> dict[str, Any]:
+        raise AssertionError("Services must not use the product endpoint")
+
+
+@pytest.mark.asyncio
+async def test_service_attachment_download_maps_keys_and_deduplicates_files() -> None:
+    client = ServiceAttachmentClient()
+    service = ProposalService(client)
+    items = [service._normalize_item(item_row(code)) for code in ("103479", "10")]
+    enriched = await service._enrich_service_items(items)
+
+    lookups = [body for name, body in client.requests if name == "DatasetSP.loadRecords"]
+    assert [body["criteria"]["parameters"][0]["value"] for body in lookups] == ["103479_Servico", "10_Servico"]
+    downloads = [body for name, body in client.requests if name == "AnexoSistemaSP.baixar"]
+    assert len(downloads) == 1
+    assert downloads[0]["paramsDown"] == {
+        "nuAttach": "261", "pkEntity": "103479", "nameEntity": "Servico",
+        "nameAttach": "INO-FMC-INNOVX.PDF", "keyAttach": "571949a7693f9ddeac077ac89e5bf0e2",
+    }
+    assert client.downloads == ["ARQUIVOANEXO123"]
+    assert base64.b64decode(enriched[0].PdfBase64) == b"%PDF-1.4 test"
+    assert enriched[1].PdfBase64 == ""
+    assert all(item.Homepage == item.CodigoTemplate == "" for item in enriched)
+    assert client.attachment_loads == []
+
+
+@pytest.mark.asyncio
+async def test_service_attachment_missing_download_key_raises_clear_error() -> None:
+    client = ServiceAttachmentClient(key=None)
+    service = ProposalService(client)
+    with pytest.raises(SankhyaResponseError, match="chave.valor"):
+        await service._enrich_service_items([service._normalize_item(item_row("103479"))])
     assert client.downloads == []

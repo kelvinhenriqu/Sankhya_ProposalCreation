@@ -46,10 +46,7 @@ class ProposalService:
         item_rows = await self._load_items(proposal_id)
         items = [self._normalize_item(row) for row in item_rows]
         if header is not None and str(header.CodTipoOperacao).strip() == "997":
-            enriched_items = [
-                item.model_copy(update={"CodigoTemplate": "", "Homepage": "", "PdfBase64": ""})
-                for item in items
-            ]
+            enriched_items = await self._enrich_service_items(items)
         else:
             enriched_items = await self._enrich_items(items)
 
@@ -113,6 +110,66 @@ class ProposalService:
             },
         )
         return self._result_rows(payload, "vendedor")
+
+    async def _enrich_service_items(self, items: list[ProposalItem]) -> list[ProposalItem]:
+        processed_files: set[str] = set()
+        enriched: list[ProposalItem] = []
+        for item in items:
+            code = str(item.CodProd).strip()
+            payload = await self._client.request_service("DatasetSP.loadRecords", {
+                "dataSetID": "05I",
+                "entityName": "AnexoSistema",
+                "standAlone": False,
+                "fields": [
+                    "NUATTACH", "NOMEINSTANCIA", "CHAVEARQUIVO", "NOMEARQUIVO",
+                    "DESCRICAO", "LINK", "CODUSU", "Usuario.NOMEUSU", "DHCAD",
+                    "CODUSUALT", "Usuario2.NOMEUSU", "DHALTER", "TIPOAPRES",
+                    "TIPOACESSO", "RESOURCEID", "PKREGISTRO",
+                ],
+                "tryJoinedFields": True,
+                "parallelLoader": True,
+                "crudListener": "br.com.sankhya.modelcore.crudlisteners.AnexoSistemaCrudListener",
+                "criteria": {
+                    "expression": "((this.PKREGISTRO = ? AND this.NOMEINSTANCIA = ?) AND ((this.TIPOAPRES = 'GLO') OR (this.TIPOAPRES = 'LOC' AND (this.RESOURCEID = ? OR this.RESOURCEID = ?))))",
+                    "parameters": [
+                        {"type": "S", "value": f"{code}_Servico"},
+                        {"type": "S", "value": "Servico"},
+                        {"type": "S", "value": "br.com.sankhya.core.cad.servicos"},
+                        {"type": "S", "value": "br.com.sankhya.core.cad.servicos"},
+                    ],
+                },
+                "ignoreListenerMethods": "",
+                "useDefaultRowsLimit": True,
+                "clientEventList": {"clientEvent": [{"$": "br.com.sankhya.mge.info.metro.cubico"}]},
+            })
+            pdf_base64 = ""
+            for row in self._result_rows(payload, "anexos de serviço"):
+                self._require_columns(row, 5, "anexo de serviço")
+                if str(row[4] or "").strip().lower() != "descricao" or not str(row[3] or "").lower().endswith(".pdf"):
+                    continue
+                file_key = str(row[2] or "").strip()
+                if not file_key or not row[0]:
+                    raise SankhyaResponseError("Anexo de serviço sem NUATTACH ou CHAVEARQUIVO")
+                if file_key not in processed_files:
+                    download = await self._client.request_service("AnexoSistemaSP.baixar", {
+                        "paramsDown": {
+                            "nuAttach": str(row[0]), "pkEntity": code,
+                            "nameEntity": "Servico", "nameAttach": row[3],
+                            "keyAttach": file_key,
+                        },
+                        "clientEventList": {"clientEvent": [{"$": "br.com.sankhya.mge.info.metro.cubico"}]},
+                    })
+                    key = download.get("responseBody", {}).get("chave", {}).get("valor")
+                    if not key:
+                        raise SankhyaResponseError("AnexoSistemaSP.baixar não retornou chave.valor")
+                    pdf = await self._client.download_attachment(str(key))
+                    pdf_base64 = base64.b64encode(pdf).decode("ascii")
+                    processed_files.add(file_key)
+                break
+            enriched.append(item.model_copy(update={
+                "CodigoTemplate": "", "Homepage": "", "PdfBase64": pdf_base64,
+            }))
+        return enriched
 
     async def _enrich_items(self, items: list[ProposalItem]) -> list[ProposalItem]:
         processed_homepages: set[str] = set()
