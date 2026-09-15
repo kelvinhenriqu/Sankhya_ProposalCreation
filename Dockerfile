@@ -5,7 +5,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.10.6 /uv /uvx /bin/
 LABEL org.opencontainers.image.source="https://github.com/kelvinhenriqu/Sankhya_ProposalCreation" \
       org.opencontainers.image.title="Sankhya Proposal Creation" \
       org.opencontainers.image.description="FastAPI para consulta Sankhya e geração de propostas PDF com LibreOffice headless" \
-      org.opencontainers.image.version="0.1.10"
+      org.opencontainers.image.version="0.1.11"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

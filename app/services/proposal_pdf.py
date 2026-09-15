@@ -66,6 +66,11 @@ class ProposalPdfService:
             raise PdfGenerationError("A proposta não possui cabeçalho")
 
         is_service = self._text(proposal.Cabecalho.CodTipoOperacao) == "997"
+        header_template = (
+            "Cabecalho_4X.docx"
+            if self._text(proposal.Cabecalho.CodEmpresa) == "3"
+            else "Cabecalho.docx"
+        )
         seller = self._sellers.find(proposal.Vendedor)
         with tempfile.TemporaryDirectory(prefix="proposal-") as temp_name:
             temp = Path(temp_name)
@@ -79,7 +84,7 @@ class ProposalPdfService:
             self._converter.render_many(
                 [
                     WordRenderJob(
-                        template=self._templates_dir / "Cabecalho.docx",
+                        template=self._templates_dir / header_template,
                         working_document=header_docx,
                         output_pdf=header_pdf,
                         fields=self._header_fields(
