@@ -20,6 +20,7 @@ class WordRenderJob:
     repeating_section: str | None = None
     repeating_rows: list[dict[str, Any]] | None = None
     field_font_size_points: float = 8
+    field_font_sizes: dict[str, float] = field(default_factory=dict)
 
 
 class WordPdfConverter:
@@ -58,6 +59,7 @@ class WordPdfConverter:
                             document,
                             job.fields,
                             job.field_font_size_points,
+                            job.field_font_sizes,
                         )
                         if job.repeating_section is not None:
                             self._fill_repeating_section(
@@ -90,12 +92,13 @@ class WordPdfConverter:
         document: Any,
         fields: dict[str, Any],
         font_size_points: float,
+        field_font_sizes: dict[str, float] | None = None,
     ) -> None:
         for name, value in fields.items():
             control = cls._find_control(document.ContentControls, name)
             if control is None:
                 raise PdfGenerationError(f"Controle '{name}' não encontrado no template")
-            cls._set_text(control, value, font_size_points)
+            cls._set_text(control, value, (field_font_sizes or {}).get(name, font_size_points))
 
     @classmethod
     def _fill_repeating_section(

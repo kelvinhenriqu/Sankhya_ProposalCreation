@@ -26,9 +26,9 @@ class DocxContentControlRenderer:
         fields: dict[str, Any],
         *,
         font_size_points: float = FIELD_FONT_SIZE_POINTS,
+        field_font_sizes: dict[str, float] | None = None,
     ) -> None:
         root, entries = self._read(template)
-        size_half_points = self._half_points(font_size_points)
         for name, value in fields.items():
             control = self._find_control(root, name)
             if control is None:
@@ -37,7 +37,7 @@ class DocxContentControlRenderer:
             self._set_direct_format(
                 control,
                 font_family=FIELD_FONT_FAMILY,
-                size_half_points=size_half_points,
+                size_half_points=self._half_points((field_font_sizes or {}).get(name, font_size_points)),
             )
         self._unwrap_content_controls(root)
         self._write(destination, root, entries)
@@ -51,6 +51,7 @@ class DocxContentControlRenderer:
         *,
         fields: dict[str, Any] | None = None,
         font_size_points: float = FIELD_FONT_SIZE_POINTS,
+        field_font_sizes: dict[str, float] | None = None,
     ) -> None:
         root, entries = self._read(template)
         size_half_points = self._half_points(font_size_points)
@@ -93,7 +94,7 @@ class DocxContentControlRenderer:
             self._set_direct_format(
                 control,
                 font_family=FIELD_FONT_FAMILY,
-                size_half_points=size_half_points,
+                size_half_points=self._half_points((field_font_sizes or {}).get(name, font_size_points)),
             )
         self._unwrap_content_controls(root)
         self._write(destination, root, entries)

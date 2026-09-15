@@ -85,6 +85,7 @@ class ProposalPdfService:
                         fields=self._header_fields(
                             proposal, responsible, client_email, seller
                         ),
+                        field_font_sizes={"REV": 10},
                     ),
                     WordRenderJob(
                         template=self._templates_dir / ("Itens_servico.docx" if is_service else "Itens.docx"),
@@ -94,6 +95,7 @@ class ProposalPdfService:
                             "TotalImpostos_Proposta": f"R$ {self._format_number(proposal.Cabecalho.ValorNota, 2, True)}",
                         },
                         repeating_section="Itens",
+                        field_font_sizes={"TotalImpostos_Proposta": 10},
                         repeating_rows=[
                             self._item_fields(
                                 item,

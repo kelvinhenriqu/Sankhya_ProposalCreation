@@ -23,6 +23,7 @@ class LibreOfficePdfConverter:
                     job.working_document,
                     job.fields,
                     font_size_points=job.field_font_size_points,
+                    field_font_sizes=job.field_font_sizes,
                 )
             else:
                 self._renderer.render_repeating(
@@ -32,6 +33,7 @@ class LibreOfficePdfConverter:
                     job.repeating_rows or [],
                     fields=job.fields,
                     font_size_points=job.field_font_size_points,
+                    field_font_sizes=job.field_font_sizes,
                 )
 
         with tempfile.TemporaryDirectory(prefix="libreoffice-profile-") as profile_name:
