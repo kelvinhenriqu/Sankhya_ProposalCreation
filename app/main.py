@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Sankhya GetProposal API",
-    version="0.1.13",
+    version="0.1.14",
     lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory=_WEB_DIR / "static"), name="static")
