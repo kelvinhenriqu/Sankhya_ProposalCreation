@@ -81,7 +81,7 @@ def test_company_and_freight_rules() -> None:
 
     assert fields["CNPJ"] == "14.400.275/0001-27"
     assert fields["RazaoSocial"] == "JT INSTRUMENTAÇÃO E PROCESSOS INDUSTRIAIS LTDA"
-    assert fields["Frete"] == "Condição: FOB – JT – Jundiaí/SP."
+    assert fields["Frete"] == "Condição: FOB JT – Jundiaí/SP."
 
 
 def test_ooxml_renderer_duplicates_items_without_word(tmp_path: Path) -> None:

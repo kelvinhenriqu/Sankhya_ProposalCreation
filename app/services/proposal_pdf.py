@@ -180,7 +180,8 @@ class ProposalPdfService:
         company = _COMPANY_DATA.get(ProposalPdfService._text(header.CodEmpresa), ("", "", ""))
         freight = ""
         if ProposalPdfService._text(header.CifFob) == "F":
-            freight = "Condição: FOB – JT – Jundiaí/SP."
+            freight_company = "4X" if ProposalPdfService._text(header.CodEmpresa) == "3" else "JT"
+            freight = f"Condição: FOB {freight_company} – Jundiaí/SP."
         elif ProposalPdfService._text(header.CifFob) == "C":
             freight = "Condição: CIF."
         return {
