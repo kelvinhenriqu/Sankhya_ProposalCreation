@@ -2,6 +2,7 @@ import base64
 import re
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from io import BytesIO
 from pathlib import Path
@@ -48,8 +49,10 @@ class ProposalPdfService:
         converter: str = "word",
         libreoffice_executable: Path | None = None,
         conversion_timeout: int = 120,
+        delivery_deadline_in_days: bool = False,
     ):
         self._templates_dir = templates_dir.resolve()
+        self._delivery_deadline_in_days = delivery_deadline_in_days
         if converter == "libreoffice":
             self._converter = LibreOfficePdfConverter(
                 libreoffice_executable,
@@ -105,6 +108,7 @@ class ProposalPdfService:
                             self._item_fields(
                                 item,
                                 is_service=is_service,
+                                delivery_deadline_in_days=self._delivery_deadline_in_days,
                             )
                             for item in proposal.Itens
                         ],
@@ -153,7 +157,10 @@ class ProposalPdfService:
         }
 
     @staticmethod
-    def _item_fields(item: ProposalItem, *, is_service: bool = False) -> dict[str, str]:
+    def _item_fields(
+        item: ProposalItem, *, is_service: bool = False,
+        delivery_deadline_in_days: bool = False,
+    ) -> dict[str, str]:
         description = ProposalPdfService._text(item.DescricaoCompleta).replace(" - ", "\n- ")
         fields = {
             "Item": ProposalPdfService._text(item.Sequencia),
@@ -163,7 +170,9 @@ class ProposalPdfService:
             "ValorTotal": f"R$ {ProposalPdfService._format_number(item.ValorTotalLiquido, 2, True)}",
             "TotalImpostos": f"R$ {ProposalPdfService._format_number(item.ValorTotalIPI, 2, True)}",
             "Codigo": "" if is_service else ProposalPdfService._text(item.CodigoTemplate),
-            "Entrega": ProposalPdfService._text(item.PrevisaoEntrega),
+            "Entrega": ProposalPdfService._delivery_deadline(
+                item.PrevisaoEntrega, in_days=delivery_deadline_in_days,
+            ),
             "NCM": ProposalPdfService._text(item.NCM),
             "IPI": f"{ProposalPdfService._format_number(item.AliqIPI, 2, False)}%",
             "ICMS": f"{ProposalPdfService._format_number(item.AliqICMS, 2, False)}%",
@@ -172,6 +181,26 @@ class ProposalPdfService:
             for name in ("Codigo", "NCM", "IPI", "ICMS"):
                 fields.pop(name)
         return fields
+
+    @staticmethod
+    def _delivery_deadline(value: Any, *, in_days: bool) -> str:
+        text = ProposalPdfService._text(value)
+        try:
+            delivery_date = datetime.fromisoformat(text).date()
+        except ValueError:
+            for date_format in ("%d/%m/%Y", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
+                try:
+                    delivery_date = datetime.strptime(text, date_format).date()
+                    break
+                except ValueError:
+                    continue
+            else:
+                return text
+        if in_days:
+            today = datetime.now(timezone(timedelta(hours=-3))).date()
+            days = (delivery_date - today).days
+            return f"{days} {'dia' if days == 1 else 'dias'} após colocação do pedido"
+        return delivery_date.strftime("%d/%m/%Y")
 
     @staticmethod
     def _terms_fields(proposal: Proposal) -> dict[str, str]:

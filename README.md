@@ -26,6 +26,12 @@ Nunca versione `.env`. O arquivo `.env.example` documenta as variáveis necessá
 
 ## Executar
 
+`DELIVERY_DEADLINE_IN_DAYS` controla o prazo de entrega no PDF: `true`
+exibe dias corridos entre hoje (horario de Brasilia) e a data retornada pela
+API, como `60 dias após colocação do pedido`; `false` (padrao) exibe a data final, como `20/10/2026`.
+Datas vencidas resultam em dias negativos. Valores vazios ou que nao sejam
+datas sao preservados. Reinicie a aplicacao ao alterar o `.env`.
+
 No Windows, prefira o inicializador abaixo. Ele garante que a API use o Python do `.venv`, valida `pywin32` antes de iniciar e evita o erro de executar com outro interpretador:
 
 ```powershell

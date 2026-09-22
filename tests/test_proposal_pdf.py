@@ -2,6 +2,10 @@ import base64
 import zipfile
 from io import BytesIO
 from pathlib import Path
+from datetime import datetime
+from unittest.mock import patch
+
+import pytest
 
 from pypdf import PdfReader, PdfWriter
 from lxml import etree
@@ -17,6 +21,35 @@ def one_page_pdf() -> bytes:
     output = BytesIO()
     writer.write(output)
     return output.getvalue()
+
+
+@pytest.mark.parametrize("value, expected", [
+    ("22/10/2026", "30 dias após colocação do pedido"),
+    ("21/11/2026", "60 dias após colocação do pedido"),
+    ("23/09/2026", "1 dia após colocação do pedido"),
+    ("22/09/2026", "0 dias após colocação do pedido"),
+    ("20/09/2026", "-2 dias após colocação do pedido"),
+    ("2026-10-22T12:00:00", "30 dias após colocação do pedido"),
+    (None, ""),
+    ("30 dias", "30 dias"),
+])
+def test_delivery_deadline_in_days(value, expected) -> None:
+    with patch("app.services.proposal_pdf.datetime", wraps=datetime) as clock:
+        clock.now.return_value = datetime(2026, 9, 22, 23, 30)
+        for is_service in (False, True):
+            fields = ProposalPdfService._item_fields(
+                ProposalItem(PrevisaoEntrega=value),
+                is_service=is_service, delivery_deadline_in_days=True,
+            )
+            assert fields["Entrega"] == expected
+        if clock.now.called:
+            assert clock.now.call_args.args[0].utcoffset(None).total_seconds() == -10800
+
+
+@pytest.mark.parametrize("value", ["20/10/2026", "20/10/2026 12:30:00", "2026-10-20"])
+def test_delivery_deadline_as_date(value) -> None:
+    fields = ProposalPdfService._item_fields(ProposalItem(PrevisaoEntrega=value))
+    assert fields["Entrega"] == "20/10/2026"
 
 
 class FakeConverter:

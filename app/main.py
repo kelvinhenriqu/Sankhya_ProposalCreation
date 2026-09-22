@@ -32,13 +32,14 @@ async def lifespan(app: FastAPI):
             converter=settings.pdf_converter,
             libreoffice_executable=settings.libreoffice_executable,
             conversion_timeout=settings.pdf_conversion_timeout,
+            delivery_deadline_in_days=settings.delivery_deadline_in_days,
         )
         yield
 
 
 app = FastAPI(
     title="Sankhya GetProposal API",
-    version="0.1.12",
+    version="0.1.13",
     lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory=_WEB_DIR / "static"), name="static")
