@@ -2,7 +2,7 @@ import base64
 import re
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from io import BytesIO
 from pathlib import Path
@@ -109,6 +109,7 @@ class ProposalPdfService:
                                 item,
                                 is_service=is_service,
                                 delivery_deadline_in_days=self._delivery_deadline_in_days,
+                                proposal_date=proposal.Cabecalho.DataProposta,
                             )
                             for item in proposal.Itens
                         ],
@@ -160,6 +161,7 @@ class ProposalPdfService:
     def _item_fields(
         item: ProposalItem, *, is_service: bool = False,
         delivery_deadline_in_days: bool = False,
+        proposal_date: Any = None,
     ) -> dict[str, str]:
         description = ProposalPdfService._text(item.DescricaoCompleta).replace(" - ", "\n- ")
         fields = {
@@ -172,6 +174,7 @@ class ProposalPdfService:
             "Codigo": "" if is_service else ProposalPdfService._text(item.CodigoTemplate),
             "Entrega": ProposalPdfService._delivery_deadline(
                 item.PrevisaoEntrega, in_days=delivery_deadline_in_days,
+                proposal_date=proposal_date,
             ),
             "NCM": ProposalPdfService._text(item.NCM),
             "IPI": f"{ProposalPdfService._format_number(item.AliqIPI, 2, False)}%",
@@ -183,22 +186,28 @@ class ProposalPdfService:
         return fields
 
     @staticmethod
-    def _delivery_deadline(value: Any, *, in_days: bool) -> str:
+    def _parse_date(value: Any) -> date | None:
         text = ProposalPdfService._text(value)
         try:
-            delivery_date = datetime.fromisoformat(text).date()
+            return datetime.fromisoformat(text).date()
         except ValueError:
             for date_format in ("%d/%m/%Y", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
                 try:
-                    delivery_date = datetime.strptime(text, date_format).date()
-                    break
+                    return datetime.strptime(text, date_format).date()
                 except ValueError:
                     continue
-            else:
-                return text
+        return None
+
+    @staticmethod
+    def _delivery_deadline(value: Any, *, in_days: bool, proposal_date: Any = None) -> str:
+        delivery_date = ProposalPdfService._parse_date(value)
+        if delivery_date is None:
+            return ProposalPdfService._text(value)
         if in_days:
-            today = datetime.now(timezone(timedelta(hours=-3))).date()
-            days = (delivery_date - today).days
+            start_date = ProposalPdfService._parse_date(proposal_date)
+            if start_date is None:
+                raise PdfGenerationError("Data da proposta ausente ou invalida para calcular o prazo de entrega")
+            days = (delivery_date - start_date).days
             return f"{days} {'dia' if days == 1 else 'dias'} após colocação do pedido"
         return delivery_date.strftime("%d/%m/%Y")
 

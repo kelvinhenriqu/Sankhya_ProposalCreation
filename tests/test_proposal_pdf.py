@@ -11,6 +11,7 @@ from pypdf import PdfReader, PdfWriter
 from lxml import etree
 
 from app.models.proposal import Proposal, ProposalHeader, ProposalItem
+from app.core.errors import PdfGenerationError
 from app.services.proposal_pdf import ProposalPdfService
 from app.services.docx_templates import DocxContentControlRenderer
 
@@ -35,15 +36,30 @@ def one_page_pdf() -> bytes:
 ])
 def test_delivery_deadline_in_days(value, expected) -> None:
     with patch("app.services.proposal_pdf.datetime", wraps=datetime) as clock:
-        clock.now.return_value = datetime(2026, 9, 22, 23, 30)
+        clock.now.side_effect = AssertionError("O prazo nao deve depender da data atual")
         for is_service in (False, True):
             fields = ProposalPdfService._item_fields(
                 ProposalItem(PrevisaoEntrega=value),
                 is_service=is_service, delivery_deadline_in_days=True,
+                proposal_date="22/09/2026",
             )
             assert fields["Entrega"] == expected
-        if clock.now.called:
-            assert clock.now.call_args.args[0].utcoffset(None).total_seconds() == -10800
+        clock.now.assert_not_called()
+
+
+@pytest.mark.parametrize("proposal_date", [None, "", "invalida"])
+def test_delivery_deadline_rejects_missing_proposal_date(proposal_date) -> None:
+    with pytest.raises(PdfGenerationError, match="Data da proposta"):
+        ProposalPdfService._delivery_deadline(
+            "20/10/2026", in_days=True, proposal_date=proposal_date,
+        )
+
+
+@pytest.mark.parametrize("proposal_date", ["22/09/2026 18:00:00", "2026-09-22T18:00:00"])
+def test_delivery_deadline_parses_header_date(proposal_date) -> None:
+    assert ProposalPdfService._delivery_deadline(
+        "21/11/2026", in_days=True, proposal_date=proposal_date,
+    ) == "60 dias após colocação do pedido"
 
 
 @pytest.mark.parametrize("value", ["20/10/2026", "20/10/2026 12:30:00", "2026-10-20"])
@@ -101,6 +117,20 @@ def test_full_local_pipeline_preserves_merge_order_and_filename() -> None:
 
     assert generated.filename == "123 PCV - CLIENTE TESTE - PRODUTO - REV 02.pdf"
     assert len(PdfReader(BytesIO(generated.content)).pages) == 4
+
+
+@pytest.mark.parametrize("operation_code", ["1000", "997"])
+def test_pdf_generation_uses_proposal_header_date(operation_code) -> None:
+    proposal = proposal_with_product_pdf()
+    proposal.Cabecalho.DataProposta = "22/09/2026"
+    proposal.Cabecalho.CodTipoOperacao = operation_code
+    proposal.Itens[0].PrevisaoEntrega = "21/11/2026"
+    service = ProposalPdfService(Path("Templates"), delivery_deadline_in_days=True)
+    service._converter = FakeConverter()
+    with patch.object(service._converter, "render_many", wraps=service._converter.render_many) as render:
+        service.generate(proposal, "", "")
+    jobs = render.call_args.args[0]
+    assert jobs[1].repeating_rows[0]["Entrega"] == "60 dias após colocação do pedido"
 
 
 def test_power_automate_number_formatting_rules() -> None:
