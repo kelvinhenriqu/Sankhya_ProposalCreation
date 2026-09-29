@@ -108,6 +108,12 @@ button:disabled {
   border-color: #a8d5bb;
 }
 
+.message.warning {
+  color: #705009;
+  background: #fff9e8;
+  border-color: #e5c675;
+}
+
 @media (max-width: 560px) {
   main {
     margin: 24px auto;

@@ -55,6 +55,58 @@ async function errorMessage(response) {
   }
 }
 
+function openDeal(url) {
+  window.open(url, "_blank", "noopener");
+}
+
+async function resolvePipedrive(id) {
+  try {
+    const response = await fetch(`/api/v1/proposals/${id}/pipedrive/check`);
+    if (!response.ok) return { message: await errorMessage(response) };
+    const result = await response.json();
+    if (result.status === "disabled") return {};
+    if (result.status === "unavailable") return { message: result.message };
+
+    if (result.status === "existing" && result.existing_deal) {
+      const deal = result.existing_deal;
+      if (window.confirm(`Já existe um negócio no Pipedrive com o nome:\n\n${deal.title}\n\nDeseja visualizar antes de criar outro?`)) {
+        openDeal(deal.url);
+      }
+      if (window.confirm("Deseja criar um negócio mesmo assim?")) return { createPipedrive: true };
+      return {};
+    }
+    if (result.status === "not_found" && window.confirm("Deseja criar um negócio no Pipedrive para esta proposta?")) {
+      return { createPipedrive: true };
+    }
+    return {};
+  } catch (_) {
+    return { message: "Não foi possível consultar o Pipedrive. Nenhum negócio será criado e o PDF será gerado normalmente." };
+  }
+}
+
+async function downloadPdf(id, params, pipedrive = {}) {
+  const endpoint = pipedrive.createPipedrive
+    ? `/api/v1/proposals/${id}/pipedrive/pdf?${params.toString()}`
+    : `/api/v1/proposals/${id}/pdf?${params.toString()}`;
+  const response = await fetch(endpoint, { method: pipedrive.createPipedrive ? "POST" : "GET" });
+  if (!response.ok) throw new Error(await errorMessage(response));
+  const blob = await response.blob();
+  const filename = filenameFromHeader(response.headers.get("Content-Disposition"));
+  const downloadUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+  const dealUrl = response.headers.get("X-Pipedrive-Deal-Url");
+  if (dealUrl) openDeal(dealUrl);
+  const notice = [pipedrive.message, response.headers.get("X-Pipedrive-Message")].filter(Boolean).join(" ");
+  showMessage(`${notice ? `${notice} ` : ""}Proposta ${id} gerada. O download foi iniciado.`, notice ? "warning" : "success");
+  proposalNumber.select();
+}
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   clearMessage();
@@ -93,22 +145,8 @@ form.addEventListener("submit", async (event) => {
 
   setLoading(true);
   try {
-    const response = await fetch(`/api/v1/proposals/${id}/pdf?${params.toString()}`);
-    if (!response.ok) {
-      throw new Error(await errorMessage(response));
-    }
-    const blob = await response.blob();
-    const filename = filenameFromHeader(response.headers.get("Content-Disposition"));
-    const downloadUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
-    showMessage(`Proposta ${id} gerada. O download foi iniciado.`, "success");
-    proposalNumber.select();
+    const pipedrive = await resolvePipedrive(id);
+    await downloadPdf(id, params, pipedrive);
   } catch (error) {
     showMessage(error.message || "Não foi possível gerar a proposta.", "error");
   } finally {

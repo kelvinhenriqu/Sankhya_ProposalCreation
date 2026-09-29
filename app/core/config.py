@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +26,16 @@ class Settings(BaseSettings):
     sankhya_max_retries: int = Field(default=3, ge=0, le=10)
     sankhya_retry_base_delay: float = Field(default=0.5, gt=0, le=30)
 
+    # Optional integration. Leaving the token empty disables Pipedrive without
+    # affecting proposal/PDF generation.
+    pipedrive_api_token: SecretStr | None = None
+    pipedrive_domain_4x: str = "4xprocess"
+    pipedrive_domain_jtip: str = "jtinstrumentacaoeprocessosindustriaisltda"
+    pipedrive_pipeline_id: int = Field(default=8, ge=1)
+    pipedrive_connect_timeout: float = Field(default=5.0, gt=0, le=60)
+    pipedrive_read_timeout: float = Field(default=10.0, gt=0, le=120)
+    pipedrive_write_timeout: float = Field(default=10.0, gt=0, le=120)
+
     log_level: str = "INFO"
     templates_dir: Path = Path("Templates")
     pdf_converter: Literal["word", "libreoffice"] = "libreoffice"
@@ -37,6 +47,10 @@ class Settings(BaseSettings):
     @classmethod
     def normalize_base_url(cls, value: str) -> str:
         return value.rstrip("/")
+
+    @property
+    def pipedrive_enabled(self) -> bool:
+        return bool(self.pipedrive_api_token and self.pipedrive_api_token.get_secret_value().strip())
 
 
 @lru_cache

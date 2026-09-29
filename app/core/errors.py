@@ -19,3 +19,7 @@ class SankhyaResponseError(SankhyaError):
 
 class PdfGenerationError(Exception):
     """A proposal PDF could not be rendered or combined."""
+
+
+class PipedriveError(Exception):
+    """Pipedrive could not complete a request safely."""

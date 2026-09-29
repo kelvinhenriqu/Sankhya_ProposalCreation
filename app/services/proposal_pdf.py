@@ -137,6 +137,19 @@ class ProposalPdfService:
             )
 
     @staticmethod
+    def filename_for(proposal: Proposal) -> str:
+        """Return the exact filename used by generate, without rendering a PDF."""
+        if proposal.Cabecalho is None:
+            raise PdfGenerationError("A proposta nao possui cabecalho")
+        return ProposalPdfService._filename(proposal)
+
+    @staticmethod
+    def total_for(proposal: Proposal) -> Decimal:
+        if proposal.Cabecalho is None:
+            raise PdfGenerationError("A proposta nao possui cabecalho")
+        return ProposalPdfService._decimal(proposal.Cabecalho.ValorNota)
+
+    @staticmethod
     def _header_fields(
         proposal: Proposal,
         responsible: str,

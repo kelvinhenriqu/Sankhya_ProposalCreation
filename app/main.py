@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from app.api.routes.proposals import router as proposals_router
 from app.clients.sankhya import SankhyaClient
+from app.clients.pipedrive import PipedriveClient
 from app.core.config import get_settings
 from app.core.errors import PdfGenerationError, SankhyaError, SankhyaHTTPError, SankhyaUnavailableError
 from app.core.logging import configure_logging
@@ -25,8 +26,9 @@ _WEB_DIR = Path(__file__).resolve().parent / "web"
 async def lifespan(app: FastAPI):
     settings = get_settings()
     configure_logging(settings.log_level)
-    async with SankhyaClient(settings) as client:
+    async with SankhyaClient(settings) as client, PipedriveClient(settings) as pipedrive_client:
         app.state.sankhya_client = client
+        app.state.pipedrive_client = pipedrive_client
         app.state.pdf_service = ProposalPdfService(
             settings.templates_dir,
             converter=settings.pdf_converter,
@@ -39,7 +41,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Sankhya GetProposal API",
-    version="0.1.14",
+    version="0.1.15",
     lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory=_WEB_DIR / "static"), name="static")

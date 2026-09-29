@@ -86,3 +86,27 @@ class CreateProposalPdfRequest(BaseModel):
     proposta: Proposal
     responsavel: str = ""
     email_cliente: str = ""
+
+
+class PipedriveDeal(BaseModel):
+    id: str
+    title: str
+    url: str
+
+
+class PipedriveCheckResponse(BaseModel):
+    status: str
+    message: str | None = None
+    existing_deal: PipedriveDeal | None = None
+
+
+class PipedriveCreateResponse(BaseModel):
+    created: bool = False
+    message: str | None = None
+    deal: PipedriveDeal | None = None
+
+
+class PipedriveAttachmentResponse(BaseModel):
+    attached: bool = False
+    message: str | None = None
+    deal: PipedriveDeal | None = None

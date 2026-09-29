@@ -7,7 +7,7 @@ Implementação Python/FastAPI do fluxo `PA_Sankhya_GetProposal`. Esta etapa con
 ## Configuração
 
 1. Instale Python 3.11 ou superior.
-2. Preencha `.env` com credenciais Sankhya novas ou rotacionadas.
+2. Preencha `.env` com credenciais Sankhya novas ou rotacionadas. Para habilitar a integração opcional com Pipedrive, preencha também `PIPEDRIVE_API_TOKEN`. Os subdomínios de cada empresa ficam em `PIPEDRIVE_DOMAIN_4X` e `PIPEDRIVE_DOMAIN_JTIP`. Todo negócio criado entra no pipeline configurado em `PIPEDRIVE_PIPELINE_ID` (padrão: `8`), inclusive para propostas JTIP.
 3. Instale as dependências. Com `uv`:
 
 ```powershell
@@ -53,7 +53,7 @@ Abra a interface no navegador:
 http://127.0.0.1:8000/
 ```
 
-Digite o número da proposta, responsável e e-mail do cliente. Pressionar Enter consulta a Sankhya, gera o documento e inicia o download do PDF.
+Digite o número da proposta, responsável e e-mail do cliente. Pressionar Enter consulta a Sankhya, gera o documento e inicia o download do PDF. Quando Pipedrive estiver configurado, a interface busca somente negócios pelo ID da proposta antes de oferecer a criação. Falhas nessa integração não impedem a geração do PDF.
 
 Consulta:
 
@@ -105,6 +105,14 @@ Content-Type: application/json
 ```
 
 O retorno é `application/pdf` com `Content-Disposition: attachment`. A ordem é cabeçalho, itens, PDFs dos produtos presentes em `PdfBase64` e condições.
+
+## Anexar PDF a um negócio Pipedrive existente
+
+Sem criar outro negócio, use o endpoint abaixo com o ID da proposta e o ID do negócio já existente. Ele valida que o negócio encontrado pertence à proposta e então gera e anexa o PDF.
+
+```http
+POST /api/v1/proposals/{id_memoria}/pipedrive/deals/{deal_id}/pdf?responsavel=Nome&email_cliente=email@cliente.com
+```
 
 Arquivos usados:
 
