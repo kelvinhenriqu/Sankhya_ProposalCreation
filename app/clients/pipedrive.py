@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 
 from app.core.config import Settings
-from app.core.errors import PipedriveError
+from app.core.errors import PipedriveError, PipedriveFileNotFoundError
 
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,14 @@ class PipedriveClient:
             return self._normalize_domain(self._settings.pipedrive_domain_jtip)
         return None
 
+    def configured_domains(self) -> tuple[str, ...]:
+        """Return each configured company domain once, for read-only lookups."""
+        domains = (
+            self._normalize_domain(self._settings.pipedrive_domain_4x),
+            self._normalize_domain(self._settings.pipedrive_domain_jtip),
+        )
+        return tuple(dict.fromkeys(domain for domain in domains if domain))
+
     async def search_deals(self, domain: str, proposal_id: str) -> list[dict[str, Any]]:
         payload = await self._request(
             "GET", domain, "/api/v2/deals/search",
@@ -85,6 +93,62 @@ class PipedriveClient:
         )
         if not isinstance(payload.get("data"), dict):
             raise PipedriveError("Pipedrive retornou um upload de arquivo invalido")
+
+    async def list_deal_files(self, domain: str, deal_id: str) -> list[dict[str, Any]]:
+        payload = await self._request(
+            "GET", domain, f"/api/v1/deals/{deal_id}/files", params={"limit": 100}
+        )
+        files = payload.get("data")
+        if files is None:
+            return []
+        if not isinstance(files, list):
+            raise PipedriveError("Pipedrive retornou uma lista de arquivos invalida")
+        return [file for file in files if isinstance(file, dict)]
+
+    async def download_file(self, domain: str, file_id: str) -> bytes:
+        """Download an attached PDF without exposing the Pipedrive token to clients."""
+        if not self.enabled:
+            raise PipedriveError("Integracao com Pipedrive nao configurada")
+        if self._http is None:
+            raise RuntimeError("PipedriveClient nao inicializado")
+        try:
+            response = await self._http.get(
+                f"https://{domain}.pipedrive.com/api/v1/files/{file_id}/download",
+                params={"api_token": self._token},
+                headers={"Accept": "application/pdf"},
+                follow_redirects=True,
+            )
+            logger.info(
+                "pipedrive_request",
+                extra={
+                    "method": "GET",
+                    "path": f"/api/v1/files/{file_id}/download",
+                    "status_code": response.status_code,
+                },
+            )
+            response.raise_for_status()
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            raise PipedriveError("Timeout ou indisponibilidade da API Pipedrive") from exc
+        except httpx.HTTPStatusError as exc:
+            raise PipedriveError(f"Pipedrive retornou HTTP {exc.response.status_code}") from exc
+        content = response.content
+        if not content.lstrip().startswith(b"%PDF-"):
+            raise PipedriveError("O arquivo retornado pelo Pipedrive nao e um PDF valido")
+        return content
+
+    @staticmethod
+    def proposal_pdf(files: list[dict[str, Any]], proposal_id: str) -> dict[str, Any]:
+        """Select a PDF generated for this proposal, never an arbitrary attachment."""
+        prefix = f"{proposal_id} pcv"
+        candidates = [
+            file for file in files
+            if isinstance(file.get("id"), (str, int))
+            and str(file.get("name") or file.get("file_name") or "").casefold().endswith(".pdf")
+            and str(file.get("name") or file.get("file_name") or "").casefold().startswith(prefix)
+        ]
+        if not candidates:
+            raise PipedriveFileNotFoundError("Nenhum PDF desta proposta foi encontrado no Pipedrive")
+        return max(candidates, key=lambda file: str(file.get("update_time") or file.get("add_time") or ""))
 
     async def _request(self, method: str, domain: str, path: str, **kwargs: Any) -> dict[str, Any]:
         if not self.enabled:

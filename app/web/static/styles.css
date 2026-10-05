@@ -89,6 +89,18 @@ button:disabled {
   opacity: 0.65;
 }
 
+.secondary-button {
+  margin-top: 10px;
+  color: #175ea8;
+  background: #fff;
+  border: 1px solid #175ea8;
+}
+
+.secondary-button:hover:not(:disabled) {
+  color: #fff;
+  background: #175ea8;
+}
+
 .message {
   margin: 0 0 18px;
   padding: 10px;
@@ -112,6 +124,16 @@ button:disabled {
   color: #705009;
   background: #fff9e8;
   border-color: #e5c675;
+}
+
+.choice-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.choice-actions button {
+  flex: 1;
 }
 
 @media (max-width: 560px) {

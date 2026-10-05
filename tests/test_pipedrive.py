@@ -37,3 +37,16 @@ async def test_create_deal_uses_configured_pipeline() -> None:
         "pipeline_id": 8,
     }
     assert "/api/v2/deals" in str(captured["url"])
+
+
+def test_selects_the_latest_pdf_belonging_to_a_proposal() -> None:
+    selected = PipedriveClient.proposal_pdf(
+        [
+            {"id": 1, "name": "21442 PCV - Cliente - REV 01.pdf", "update_time": "2026-10-01"},
+            {"id": 2, "name": "21442 PCV - Cliente - REV 02.pdf", "update_time": "2026-10-02"},
+            {"id": 3, "name": "outro-documento.pdf", "update_time": "2026-10-03"},
+        ],
+        "21442",
+    )
+
+    assert selected["id"] == 2

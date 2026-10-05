@@ -23,3 +23,7 @@ class PdfGenerationError(Exception):
 
 class PipedriveError(Exception):
     """Pipedrive could not complete a request safely."""
+
+
+class PipedriveFileNotFoundError(PipedriveError):
+    """No proposal PDF could be found in Pipedrive."""

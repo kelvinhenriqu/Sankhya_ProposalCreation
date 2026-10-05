@@ -4,6 +4,8 @@ const responsible = document.querySelector("#responsible");
 const clientEmail = document.querySelector("#client-email");
 const submitButton = document.querySelector("#submit-button");
 const buttonLabel = submitButton.querySelector(".button-label");
+const downloadExistingButton = document.querySelector("#download-existing-button");
+const downloadExistingLabel = downloadExistingButton.querySelector(".download-existing-label");
 const message = document.querySelector("#message");
 
 const STORAGE_RESPONSIBLE = "proposal.responsible";
@@ -24,10 +26,17 @@ function clearMessage() {
   message.className = "message";
 }
 
-function setLoading(loading) {
+function setLoading(loading, action = "generate") {
   submitButton.disabled = loading;
+  downloadExistingButton.disabled = loading;
   submitButton.classList.toggle("loading", loading);
-  buttonLabel.textContent = loading ? "Gerando proposta…" : "Gerar e baixar PDF";
+  if (!loading) {
+    buttonLabel.textContent = "Gerar e baixar PDF";
+  } else if (action === "generate") {
+    buttonLabel.textContent = "Gerando proposta...";
+  } else if (action === "decision") {
+    buttonLabel.textContent = "Aguardando sua decis\u00e3o...";
+  }
   form.setAttribute("aria-busy", String(loading));
 }
 
@@ -55,32 +64,63 @@ async function errorMessage(response) {
   }
 }
 
-function openDeal(url) {
-  window.open(url, "_blank", "noopener");
+function askPipedrive(question) {
+  return new Promise((resolve) => {
+    const text = document.createElement("span");
+    text.textContent = `${question} `;
+    const yes = document.createElement("button");
+    yes.type = "button";
+    yes.textContent = "Sim";
+    const no = document.createElement("button");
+    no.type = "button";
+    no.textContent = "N\u00e3o";
+    const actions = document.createElement("div");
+    actions.className = "choice-actions";
+    actions.append(yes, no);
+
+    const answer = (value) => {
+      clearMessage();
+      resolve(value);
+    };
+    yes.addEventListener("click", () => answer(true));
+    no.addEventListener("click", () => answer(false));
+    message.replaceChildren(text, actions);
+    message.className = "message";
+    message.hidden = false;
+  });
 }
 
 async function resolvePipedrive(id) {
   try {
+    buttonLabel.textContent = "Consultando Pipedrive...";
     const response = await fetch(`/api/v1/proposals/${id}/pipedrive/check`);
     if (!response.ok) return { message: await errorMessage(response) };
     const result = await response.json();
     if (result.status === "disabled") return {};
     if (result.status === "unavailable") return { message: result.message };
-
     if (result.status === "existing" && result.existing_deal) {
-      const deal = result.existing_deal;
-      if (window.confirm(`Já existe um negócio no Pipedrive com o nome:\n\n${deal.title}\n\nDeseja visualizar antes de criar outro?`)) {
-        openDeal(deal.url);
-      }
-      if (window.confirm("Deseja criar um negócio mesmo assim?")) return { createPipedrive: true };
-      return {};
+      buttonLabel.textContent = "Aguardando sua decis\u00e3o...";
+      const createPipedrive = await askPipedrive(
+        `J\u00e1 existe um neg\u00f3cio no Pipedrive: ${result.existing_deal.title}. Deseja criar outro mesmo assim?`,
+      );
+      return {
+        createPipedrive,
+        message: createPipedrive ? "Um novo neg\u00f3cio ser\u00e1 criado no Pipedrive." : "Nenhum novo neg\u00f3cio ser\u00e1 criado.",
+      };
     }
-    if (result.status === "not_found" && window.confirm("Deseja criar um negócio no Pipedrive para esta proposta?")) {
-      return { createPipedrive: true };
+    if (result.status === "not_found") {
+      buttonLabel.textContent = "Aguardando sua decis\u00e3o...";
+      const createPipedrive = await askPipedrive(
+        "Nenhum neg\u00f3cio foi encontrado no Pipedrive. Deseja criar um e anexar o PDF?",
+      );
+      return {
+        createPipedrive,
+        message: createPipedrive ? "Um novo neg\u00f3cio ser\u00e1 criado no Pipedrive." : "O PDF ser\u00e1 gerado sem criar um neg\u00f3cio.",
+      };
     }
     return {};
   } catch (_) {
-    return { message: "Não foi possível consultar o Pipedrive. Nenhum negócio será criado e o PDF será gerado normalmente." };
+    return { message: "N\u00e3o foi poss\u00edvel consultar o Pipedrive. O PDF ser\u00e1 gerado normalmente." };
   }
 }
 
@@ -88,6 +128,9 @@ async function downloadPdf(id, params, pipedrive = {}) {
   const endpoint = pipedrive.createPipedrive
     ? `/api/v1/proposals/${id}/pipedrive/pdf?${params.toString()}`
     : `/api/v1/proposals/${id}/pdf?${params.toString()}`;
+  buttonLabel.textContent = pipedrive.createPipedrive
+    ? "Consultando Sankhya, gerando e enviando ao Pipedrive..."
+    : "Consultando Sankhya e gerando PDF...";
   const response = await fetch(endpoint, { method: pipedrive.createPipedrive ? "POST" : "GET" });
   if (!response.ok) throw new Error(await errorMessage(response));
   const blob = await response.blob();
@@ -100,8 +143,6 @@ async function downloadPdf(id, params, pipedrive = {}) {
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
-  const dealUrl = response.headers.get("X-Pipedrive-Deal-Url");
-  if (dealUrl) openDeal(dealUrl);
   const notice = [pipedrive.message, response.headers.get("X-Pipedrive-Message")].filter(Boolean).join(" ");
   showMessage(`${notice ? `${notice} ` : ""}Proposta ${id} gerada. O download foi iniciado.`, notice ? "warning" : "success");
   proposalNumber.select();
@@ -143,13 +184,58 @@ form.addEventListener("submit", async (event) => {
     email_cliente: clientEmail.value.trim(),
   });
 
-  setLoading(true);
+  setLoading(true, "decision");
   try {
-    const pipedrive = await resolvePipedrive(id);
+    const usePipedrive = await askPipedrive("Comunicar-se com Pipedrive?");
+    const pipedrive = usePipedrive
+      ? await resolvePipedrive(id)
+      : { message: "O PDF ser\u00e1 gerado sem consultar o Pipedrive." };
     await downloadPdf(id, params, pipedrive);
   } catch (error) {
     showMessage(error.message || "Não foi possível gerar a proposta.", "error");
   } finally {
+    setLoading(false);
+  }
+});
+
+downloadExistingButton.addEventListener("click", async () => {
+  clearMessage();
+  const id = Number(proposalNumber.value);
+  if (!Number.isInteger(id) || id <= 0) {
+    proposalNumber.setAttribute("aria-invalid", "true");
+    showMessage("Informe um n\u00famero de proposta v\u00e1lido.", "error");
+    proposalNumber.focus();
+    return;
+  }
+  proposalNumber.removeAttribute("aria-invalid");
+
+  setLoading(true, "decision");
+  downloadExistingLabel.textContent = "Aguardando sua decis\u00e3o...";
+  try {
+    const usePipedrive = await askPipedrive("Deseja buscar o PDF salvo no Pipedrive?");
+    if (!usePipedrive) {
+      showMessage("Busca no Pipedrive cancelada.", "success");
+      return;
+    }
+    downloadExistingLabel.textContent = "Buscando PDF no Pipedrive...";
+    const response = await fetch(`/api/v1/proposals/${id}/pipedrive/download`);
+    if (!response.ok) throw new Error(await errorMessage(response));
+    const blob = await response.blob();
+    const filename = filenameFromHeader(response.headers.get("Content-Disposition"));
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+    showMessage(`PDF da proposta ${id} baixado do Pipedrive.`, "success");
+    proposalNumber.select();
+  } catch (error) {
+    showMessage(error.message || "N\u00e3o foi poss\u00edvel baixar o PDF do Pipedrive.", "error");
+  } finally {
+    downloadExistingLabel.textContent = "Baixar PDF salvo no Pipedrive";
     setLoading(false);
   }
 });

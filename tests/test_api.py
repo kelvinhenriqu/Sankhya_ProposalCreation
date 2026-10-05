@@ -167,3 +167,49 @@ def test_pipedrive_checks_by_proposal_id_and_creates_the_pdf_named_deal(monkeypa
         ]
     finally:
         get_settings.cache_clear()
+
+
+def test_downloads_the_latest_matching_proposal_pdf_from_pipedrive(monkeypatch) -> None:
+    class FakePipedriveClient:
+        enabled = True
+
+        def configured_domains(self) -> tuple[str, ...]:
+            return ("4xprocess", "jtip")
+
+        async def search_deals(self, domain: str, proposal_id: str):
+            assert proposal_id == "21442"
+            return [{"id": 99, "title": "21442 PCV - Cliente - Produto - REV 01"}]
+
+        async def list_deal_files(self, domain: str, deal_id: str):
+            assert domain == "4xprocess"
+            assert deal_id == "99"
+            return [
+                {"id": 3, "name": "21442 PCV - Cliente - Produto - REV 01.pdf", "update_time": "2026-10-01"},
+                {"id": 4, "name": "21442 PCV - Cliente - Produto - REV 02.pdf", "update_time": "2026-10-02"},
+            ]
+
+        @staticmethod
+        def proposal_pdf(files, proposal_id: str):
+            from app.clients.pipedrive import PipedriveClient
+            return PipedriveClient.proposal_pdf(files, proposal_id)
+
+        async def download_file(self, domain: str, file_id: str) -> bytes:
+            assert file_id == "4"
+            return b"%PDF-1.4 saved proposal"
+
+    monkeypatch.setenv("SANKHYA_CLIENT_ID", "test-client")
+    monkeypatch.setenv("SANKHYA_CLIENT_SECRET", "test-secret")
+    monkeypatch.setenv("SANKHYA_X_TOKEN", "test-x-token")
+    monkeypatch.setenv("PDF_CONVERTER", "word")
+    get_settings.cache_clear()
+
+    try:
+        with TestClient(app) as client:
+            app.state.pipedrive_client = FakePipedriveClient()
+            response = client.get("/api/v1/proposals/21442/pipedrive/download")
+        assert response.status_code == 200
+        assert response.content == b"%PDF-1.4 saved proposal"
+        assert "21442 PCV" in response.headers["content-disposition"]
+        assert response.headers["x-pipedrive-deal-url"] == "https://4xprocess.pipedrive.com/deal/99"
+    finally:
+        get_settings.cache_clear()

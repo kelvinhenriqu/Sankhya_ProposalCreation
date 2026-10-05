@@ -5,9 +5,9 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Path, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
-from app.core.errors import PipedriveError
+from app.core.errors import PipedriveError, PipedriveFileNotFoundError
 from app.models.proposal import (
     CreateProposalPdfRequest,
     GetProposalResponse,
@@ -56,6 +56,17 @@ def _deal_url(domain: str, deal_id: object) -> str:
     return f"https://{domain}.pipedrive.com/deal/{deal_id}"
 
 
+def _pipedrive_download_error(request: Request, status_code: int, message: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "sucesso": False,
+            "mensagem": message,
+            "correlation_id": getattr(request.state, "correlation_id", None),
+        },
+    )
+
+
 def _matching_deal(deals: list[dict], proposal_id: str, domain: str) -> PipedriveDeal | None:
     matches = _matching_deals(deals, proposal_id, domain)
     return matches[0] if matches else None
@@ -74,6 +85,35 @@ def _matching_deals(deals: list[dict], proposal_id: str, domain: str) -> list[Pi
             deal_id = str(deal["id"])
             matches.append(PipedriveDeal(id=deal_id, title=title, url=_deal_url(domain, deal_id)))
     return matches
+
+
+@router.get("/{id_memoria}/pipedrive/download", response_class=Response)
+async def download_existing_pipedrive_pdf(
+    request: Request,
+    id_memoria: int = Path(gt=0, description="ID da memoria de calculo no Sankhya"),
+) -> Response:
+    """Download the latest PDF generated for a proposal and stored in Pipedrive."""
+    client = request.app.state.pipedrive_client
+    if not client.enabled:
+        return _pipedrive_download_error(request, 503, "Integracao com Pipedrive nao configurada.")
+
+    proposal_id = str(id_memoria)
+    try:
+        for domain in client.configured_domains():
+            deals = _matching_deals(await client.search_deals(domain, proposal_id), proposal_id, domain)
+            for deal in deals:
+                try:
+                    file = client.proposal_pdf(await client.list_deal_files(domain, deal.id), proposal_id)
+                except PipedriveFileNotFoundError:
+                    continue
+                content = await client.download_file(domain, str(file["id"]))
+                filename = str(file.get("name") or file.get("file_name") or f"proposta-{proposal_id}.pdf")
+                return _pdf_response(content, filename, {"X-Pipedrive-Deal-Url": deal.url})
+    except PipedriveError:
+        logger.warning("pipedrive_download_failed", extra={"proposal_id": proposal_id}, exc_info=True)
+        return _pipedrive_download_error(request, 502, "Nao foi possivel baixar o PDF do Pipedrive.")
+
+    return _pipedrive_download_error(request, 404, "Nenhum PDF desta proposta foi encontrado no Pipedrive.")
 
 
 @router.post(
