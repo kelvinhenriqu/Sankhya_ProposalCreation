@@ -117,6 +117,22 @@ async def test_homepage_is_retried_when_first_product_has_no_pdf() -> None:
     assert client.attachment_loads == ["10", "20"]
 
 
+@pytest.mark.asyncio
+async def test_empty_homepage_falls_back_to_template_code() -> None:
+    class EmptyHomepageClient(FakeClient):
+        async def get_product(self, product_code: Any) -> dict[str, Any]:
+            return {"produtos": {"homepage": "  "}}
+
+    client = EmptyHomepageClient()
+    proposal = await ProposalService(client).get_proposal(123)
+
+    assert [item.Homepage for item in proposal.Itens] == ["tpl", "tpl"]
+    assert client.attachment_loads == ["10"]
+    assert client.downloads == ["key-10"]
+    assert proposal.Itens[0].PdfBase64 != ""
+    assert proposal.Itens[1].PdfBase64 == ""
+
+
 def test_item_mapping_preserves_power_automate_indexes() -> None:
     item = ProposalService._normalize_item(item_row("99"))
 

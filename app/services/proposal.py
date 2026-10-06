@@ -185,6 +185,11 @@ class ProposalService:
             if isinstance(products, dict):
                 homepage = str(products.get("homepage") or "").strip().lower()
 
+            # Produtos sem homepage devem usar o código de template como chave
+            # para buscar e deduplicar o material descritivo.
+            if not homepage:
+                homepage = str(item.CodigoTemplate or "").strip().lower()
+
             if homepage and homepage not in processed_homepages:
                 attachment = self._first_description_pdf(
                     await self._client.load_product_attachments(item.CodProd)
