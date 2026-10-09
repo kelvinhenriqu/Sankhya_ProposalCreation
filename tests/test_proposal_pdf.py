@@ -147,6 +147,28 @@ def test_pdf_generation_uses_proposal_header_date(operation_code) -> None:
     assert jobs[1].repeating_rows[0]["Entrega"] == "60 dias após colocação do pedido"
 
 
+@pytest.mark.parametrize(
+    ("operation_code", "expected_break_rows"),
+    [("1000", (5, 9)), ("997", ())],
+)
+def test_only_product_items_start_a_new_page_after_each_group_of_four(
+    operation_code: str, expected_break_rows: tuple[int, ...],
+) -> None:
+    proposal = proposal_with_product_pdf()
+    proposal.Cabecalho.CodTipoOperacao = operation_code
+    proposal.Itens = [
+        proposal.Itens[0].model_copy(update={"Sequencia": str(index)})
+        for index in range(1, 10)
+    ]
+    service = ProposalPdfService(Path("Templates"))
+    service._converter = FakeConverter()
+
+    with patch.object(service._converter, "render_many", wraps=service._converter.render_many) as render:
+        service.generate(proposal, "", "")
+
+    assert render.call_args.args[0][1].page_break_before_rows == expected_break_rows
+
+
 def test_power_automate_number_formatting_rules() -> None:
     assert ProposalPdfService._format_number("1234.5", 2, True) == "1.234,50"
     assert ProposalPdfService._format_number("2.50", 2, False) == "2,5"
@@ -227,6 +249,29 @@ def test_ooxml_renderer_uses_paragraphs_for_multiline_description(tmp_path: Path
         "- CCC",
     ]
     assert not any(p.xpath(".//w:br", namespaces=namespace) for p in paragraphs)
+
+
+def test_ooxml_renderer_adds_page_break_before_requested_item(tmp_path: Path) -> None:
+    destination = tmp_path / "Itens.docx"
+    rows = [
+        ProposalPdfService._item_fields(
+            proposal_with_product_pdf().Itens[0].model_copy(update={"Sequencia": str(index)})
+        )
+        for index in range(1, 6)
+    ]
+    DocxContentControlRenderer().render_repeating(
+        Path("Templates/Itens.docx"),
+        destination,
+        "Itens",
+        rows,
+        page_break_before_rows=(5,),
+    )
+
+    with zipfile.ZipFile(destination) as package:
+        root = etree.fromstring(package.read("word/document.xml"))
+    namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    page_breaks = root.xpath("./w:body/w:p/w:r/w:br[@w:type='page']", namespaces=namespace)
+    assert len(page_breaks) == 1
 
 
 def test_ooxml_renderer_forces_header_field_font_and_size(tmp_path: Path) -> None:

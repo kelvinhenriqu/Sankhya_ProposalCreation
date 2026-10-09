@@ -12,6 +12,7 @@ from app.core.errors import PdfGenerationError
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 W = f"{{{W_NS}}}"
 XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
+PAGE_BREAK_MARKER = "_page_break_before"
 FIELD_FONT_FAMILY = "Liberation Sans"
 FIELD_FONT_SIZE_POINTS = 8
 
@@ -52,6 +53,7 @@ class DocxContentControlRenderer:
         fields: dict[str, Any] | None = None,
         font_size_points: float = FIELD_FONT_SIZE_POINTS,
         field_font_sizes: dict[str, float] | None = None,
+        page_break_before_rows: tuple[int, ...] = (),
     ) -> None:
         root, entries = self._read(template)
         size_half_points = self._half_points(font_size_points)
@@ -85,6 +87,8 @@ class DocxContentControlRenderer:
                     font_family=FIELD_FONT_FAMILY,
                     size_half_points=size_half_points,
                 )
+            if offset + 1 in page_break_before_rows:
+                self._set_page_break_before(item)
             content.insert(position + offset, item)
         for name, value in (fields or {}).items():
             control = self._find_control(root, name)
@@ -97,6 +101,7 @@ class DocxContentControlRenderer:
                 size_half_points=self._half_points((field_font_sizes or {}).get(name, font_size_points)),
             )
         self._unwrap_content_controls(root)
+        self._split_tables_at_page_breaks(root)
         self._write(destination, root, entries)
 
     @staticmethod
@@ -283,6 +288,49 @@ class DocxContentControlRenderer:
             if size is None:
                 size = etree.SubElement(properties, f"{W}{element_name}")
             size.set(f"{W}val", size_half_points)
+
+    @staticmethod
+    def _set_page_break_before(item: Any) -> None:
+        """Mark a repeated item's first table row for a later table split."""
+        row = next(item.iter(f"{W}tr"), None)
+        if row is None:
+            raise PdfGenerationError("Item repetitivo sem linha de tabela")
+        row.set(PAGE_BREAK_MARKER, "true")
+
+    @staticmethod
+    def _split_tables_at_page_breaks(root: Any) -> None:
+        """Split item tables at marked rows; LibreOffice honors breaks between tables."""
+        marked_rows = [
+            row for row in root.iter(f"{W}tr")
+            if row.get(PAGE_BREAK_MARKER) == "true"
+        ]
+        for row in reversed(marked_rows):
+            row.attrib.pop(PAGE_BREAK_MARKER, None)
+            table = row.getparent()
+            if table is None or table.tag != f"{W}tbl":
+                raise PdfGenerationError("Linha de item fora da tabela")
+            parent = table.getparent()
+            if parent is None:
+                raise PdfGenerationError("Tabela de itens sem contêiner")
+
+            following_table = copy.deepcopy(table)
+            for child in list(following_table):
+                if child.tag == f"{W}tr":
+                    following_table.remove(child)
+
+            rows = [child for child in table if child.tag == f"{W}tr"]
+            start = rows.index(row)
+            for following_row in rows[start:]:
+                table.remove(following_row)
+                following_table.append(following_row)
+
+            page_break_paragraph = etree.Element(f"{W}p")
+            page_break_run = etree.SubElement(page_break_paragraph, f"{W}r")
+            page_break = etree.SubElement(page_break_run, f"{W}br")
+            page_break.set(f"{W}type", "page")
+            position = parent.index(table) + 1
+            parent.insert(position, page_break_paragraph)
+            parent.insert(position + 1, following_table)
 
     @staticmethod
     def _unwrap_content_controls(root: Any) -> None:

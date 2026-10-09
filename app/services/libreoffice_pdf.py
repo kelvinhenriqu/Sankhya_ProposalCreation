@@ -34,6 +34,7 @@ class LibreOfficePdfConverter:
                     fields=job.fields,
                     font_size_points=job.field_font_size_points,
                     field_font_sizes=job.field_font_sizes,
+                    page_break_before_rows=job.page_break_before_rows,
                 )
 
         with tempfile.TemporaryDirectory(prefix="libreoffice-profile-") as profile_name:

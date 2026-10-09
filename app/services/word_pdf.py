@@ -21,6 +21,7 @@ class WordRenderJob:
     repeating_rows: list[dict[str, Any]] | None = None
     field_font_size_points: float = 8
     field_font_sizes: dict[str, float] = field(default_factory=dict)
+    page_break_before_rows: tuple[int, ...] = ()
 
 
 class WordPdfConverter:
@@ -67,6 +68,7 @@ class WordPdfConverter:
                                 job.repeating_section,
                                 job.repeating_rows or [],
                                 job.field_font_size_points,
+                                job.page_break_before_rows,
                             )
                         document.Save()
                         document.ExportAsFixedFormat(str(job.output_pdf.resolve()), 17)
@@ -107,6 +109,7 @@ class WordPdfConverter:
         section_name: str,
         rows: list[dict[str, Any]],
         font_size_points: float,
+        page_break_before_rows: tuple[int, ...] = (),
     ) -> None:
         section = cls._find_control(document.ContentControls, section_name)
         if section is None:
@@ -129,7 +132,8 @@ class WordPdfConverter:
             section.RepeatingSectionItems.Item(section.RepeatingSectionItems.Count).Delete()
 
         for row_index, values in enumerate(rows, start=1):
-            controls = section.RepeatingSectionItems.Item(row_index).Range.ContentControls
+            item = section.RepeatingSectionItems.Item(row_index)
+            controls = item.Range.ContentControls
             for name, value in values.items():
                 control = cls._find_control(controls, name)
                 if control is None:
@@ -137,6 +141,8 @@ class WordPdfConverter:
                         f"Controle repetitivo '{name}' não encontrado no template"
                     )
                 cls._set_text(control, value, font_size_points)
+            if row_index in page_break_before_rows:
+                item.Range.Paragraphs.Item(1).Range.ParagraphFormat.PageBreakBefore = True
 
     @staticmethod
     def _find_control(controls: Any, name: str) -> Any | None:

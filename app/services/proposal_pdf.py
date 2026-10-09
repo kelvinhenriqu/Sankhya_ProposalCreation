@@ -106,6 +106,9 @@ class ProposalPdfService:
                         },
                         repeating_section="Itens",
                         field_font_sizes={"TotalImpostos_Proposta": 10},
+                        page_break_before_rows=(
+                            () if is_service else tuple(range(5, len(proposal.Itens) + 1, 4))
+                        ),
                         repeating_rows=[
                             self._item_fields(
                                 item,
