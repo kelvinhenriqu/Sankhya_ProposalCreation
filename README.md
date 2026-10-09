@@ -104,7 +104,7 @@ Content-Type: application/json
 }
 ```
 
-O retorno é `application/pdf` com `Content-Disposition: attachment`. A ordem é cabeçalho, itens, PDFs dos produtos presentes em `PdfBase64` e condições.
+O retorno é `application/pdf` com `Content-Disposition: attachment`. A ordem padrão é cabeçalho, itens, PDFs dos produtos presentes em `PdfBase64` e condições. Defina `PRODUCT_PDFS_BEFORE_ITEMS=true` no `.env` para colocar os PDFs de escopo antes dos itens. Reinicie a aplicação após a alteração.
 
 ## Anexar PDF a um negócio Pipedrive existente
 

@@ -16,9 +16,9 @@ from app.services.proposal_pdf import ProposalPdfService
 from app.services.docx_templates import DocxContentControlRenderer
 
 
-def one_page_pdf() -> bytes:
+def one_page_pdf(width: int = 595) -> bytes:
     writer = PdfWriter()
-    writer.add_blank_page(width=595, height=842)
+    writer.add_blank_page(width=width, height=842)
     output = BytesIO()
     writer.write(output)
     return output.getvalue()
@@ -73,7 +73,12 @@ class FakeConverter:
         for job in jobs:
             assert job.template.is_file()
             job.working_document.write_bytes(job.template.read_bytes())
-            job.output_pdf.write_bytes(one_page_pdf())
+            width = {
+                "01_Cabecalho.pdf": 401,
+                "55_Itens.pdf": 502,
+                "99_Condicoes.pdf": 703,
+            }[job.output_pdf.name]
+            job.output_pdf.write_bytes(one_page_pdf(width))
 
 
 def proposal_with_product_pdf() -> Proposal:
@@ -103,20 +108,29 @@ def proposal_with_product_pdf() -> Proposal:
                 NCM="1234.56.78",
                 AliqIPI="5",
                 AliqICMS="18",
-                PdfBase64=base64.b64encode(one_page_pdf()).decode("ascii"),
+                PdfBase64=base64.b64encode(one_page_pdf(603)).decode("ascii"),
             )
         ],
     )
 
 
-def test_full_local_pipeline_preserves_merge_order_and_filename() -> None:
-    service = ProposalPdfService(Path("Templates"))
+@pytest.mark.parametrize(
+    ("product_pdfs_before_items", "expected_widths"),
+    [(False, [401, 502, 603, 703]), (True, [401, 603, 502, 703])],
+)
+def test_full_local_pipeline_preserves_merge_order_and_filename(
+    product_pdfs_before_items: bool, expected_widths: list[int],
+) -> None:
+    service = ProposalPdfService(
+        Path("Templates"), product_pdfs_before_items=product_pdfs_before_items,
+    )
     service._converter = FakeConverter()  # type: ignore[assignment]
 
     generated = service.generate(proposal_with_product_pdf(), "Responsável", "cliente@example.com")
 
     assert generated.filename == "123 PCV - CLIENTE TESTE - PRODUTO - REV 02.pdf"
-    assert len(PdfReader(BytesIO(generated.content)).pages) == 4
+    pages = PdfReader(BytesIO(generated.content)).pages
+    assert [int(page.mediabox.width) for page in pages] == expected_widths
 
 
 @pytest.mark.parametrize("operation_code", ["1000", "997"])

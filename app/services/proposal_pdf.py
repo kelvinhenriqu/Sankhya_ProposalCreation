@@ -50,9 +50,11 @@ class ProposalPdfService:
         libreoffice_executable: Path | None = None,
         conversion_timeout: int = 120,
         delivery_deadline_in_days: bool = False,
+        product_pdfs_before_items: bool = False,
     ):
         self._templates_dir = templates_dir.resolve()
         self._delivery_deadline_in_days = delivery_deadline_in_days
+        self._product_pdfs_before_items = product_pdfs_before_items
         if converter == "libreoffice":
             self._converter = LibreOfficePdfConverter(
                 libreoffice_executable,
@@ -124,12 +126,18 @@ class ProposalPdfService:
                 ]
             )
 
-            parts = [header_pdf.read_bytes(), items_pdf.read_bytes()]
-            parts.extend(
+            product_pdfs = [
                 self._decode_product_pdf(item.PdfBase64, item.CodProd)
                 for item in proposal.Itens
                 if item.PdfBase64
-            )
+            ]
+            parts = [header_pdf.read_bytes()]
+            if self._product_pdfs_before_items:
+                parts.extend(product_pdfs)
+                parts.append(items_pdf.read_bytes())
+            else:
+                parts.append(items_pdf.read_bytes())
+                parts.extend(product_pdfs)
             parts.append(terms_pdf.read_bytes())
             return GeneratedPdf(
                 content=self._merge(parts),

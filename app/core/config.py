@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     libreoffice_executable: Path | None = None
     pdf_conversion_timeout: int = Field(default=120, ge=10, le=600)
     delivery_deadline_in_days: bool = False
+    product_pdfs_before_items: bool = False
 
     @field_validator("sankhya_base_url")
     @classmethod
