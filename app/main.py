@@ -1,11 +1,11 @@
 import logging
+import tomllib
 from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
@@ -20,6 +20,8 @@ from app.services.proposal_pdf import ProposalPdfService
 
 logger = logging.getLogger(__name__)
 _WEB_DIR = Path(__file__).resolve().parent / "web"
+_PROJECT_FILE = _WEB_DIR.parent.parent / "pyproject.toml"
+_APP_VERSION = tomllib.loads(_PROJECT_FILE.read_text(encoding="utf-8"))["project"]["version"]
 
 
 @asynccontextmanager
@@ -42,7 +44,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Sankhya GetProposal API",
-    version="0.1.18",
+    version=_APP_VERSION,
     lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory=_WEB_DIR / "static"), name="static")
@@ -60,12 +62,13 @@ async def correlation_id_middleware(request: Request, call_next):
 
 @app.get("/health", tags=["health"])
 async def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "version": app.version}
 
 
 @app.get("/", include_in_schema=False)
-async def web_interface() -> FileResponse:
-    return FileResponse(_WEB_DIR / "index.html")
+async def web_interface() -> HTMLResponse:
+    page = (_WEB_DIR / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(page.replace("{{API_VERSION}}", app.version))
 
 
 @app.get("/favicon.ico", include_in_schema=False)

@@ -28,7 +28,7 @@ def test_health_endpoint_starts_with_valid_environment(monkeypatch) -> None:
         with TestClient(app) as client:
             response = client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        assert response.json() == {"status": "ok", "version": app.version}
         assert response.headers["X-Correlation-ID"]
     finally:
         get_settings.cache_clear()
@@ -49,6 +49,7 @@ def test_web_interface_and_static_assets(monkeypatch) -> None:
         assert page.status_code == 200
         assert 'id="proposal-form"' in page.text
         assert 'id="proposal-number"' in page.text
+        assert f"v{app.version}" in page.text
         assert script.status_code == 200
         assert "javascript" in script.headers["content-type"]
         assert stylesheet.status_code == 200

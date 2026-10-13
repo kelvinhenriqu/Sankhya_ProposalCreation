@@ -136,6 +136,16 @@ button:disabled {
   flex: 1;
 }
 
+.app-version {
+  position: fixed;
+  right: 8px;
+  bottom: 6px;
+  color: #777;
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.8;
+}
+
 @media (max-width: 560px) {
   main {
     margin: 24px auto;
