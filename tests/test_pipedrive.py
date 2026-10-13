@@ -21,7 +21,8 @@ async def test_create_deal_uses_configured_pipeline() -> None:
         sankhya_client_id="client",
         sankhya_client_secret="secret",
         sankhya_x_token="token",
-        pipedrive_api_token="pipedrive-token",
+        pipedrive_api_token_4x="4x-token",
+        pipedrive_api_token_jt="jt-token",
         pipedrive_pipeline_id=8,
     )
     async with PipedriveClient(settings) as client:
@@ -37,6 +38,45 @@ async def test_create_deal_uses_configured_pipeline() -> None:
         "pipeline_id": 8,
     }
     assert "/api/v2/deals" in str(captured["url"])
+    assert "api_token=4x-token" in str(captured["url"])
+
+
+@pytest.mark.asyncio
+async def test_requests_use_the_token_for_the_selected_company() -> None:
+    captured: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(str(request.url))
+        return httpx.Response(200, json={"data": {"items": []}})
+
+    settings = Settings(
+        sankhya_client_id="client",
+        sankhya_client_secret="secret",
+        sankhya_x_token="token",
+        pipedrive_api_token_4x="4x-token",
+        pipedrive_api_token_jt="jt-token",
+    )
+    async with PipedriveClient(settings) as client:
+        await client._http.aclose()  # type: ignore[union-attr]
+        client._http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        await client.search_deals("4xprocess", "21493")
+        await client.search_deals("jtinstrumentacaoeprocessosindustriaisltda", "21494")
+
+    assert "api_token=4x-token" in captured[0]
+    assert "api_token=jt-token" in captured[1]
+
+
+def test_only_returns_domains_with_a_configured_token() -> None:
+    settings = Settings(
+        sankhya_client_id="client",
+        sankhya_client_secret="secret",
+        sankhya_x_token="token",
+        pipedrive_api_token_jt="jt-token",
+    )
+
+    client = PipedriveClient(settings)
+
+    assert client.configured_domains() == ("jtinstrumentacaoeprocessosindustriaisltda",)
 
 
 def test_selects_the_latest_pdf_belonging_to_a_proposal() -> None:

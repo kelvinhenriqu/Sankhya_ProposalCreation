@@ -26,9 +26,10 @@ class Settings(BaseSettings):
     sankhya_max_retries: int = Field(default=3, ge=0, le=10)
     sankhya_retry_base_delay: float = Field(default=0.5, gt=0, le=30)
 
-    # Optional integration. Leaving the token empty disables Pipedrive without
-    # affecting proposal/PDF generation.
-    pipedrive_api_token: SecretStr | None = None
+    # Optional integration. Each company has its own Pipedrive account and API
+    # token. Leaving either token empty disables Pipedrive only for that company.
+    pipedrive_api_token_4x: SecretStr | None = None
+    pipedrive_api_token_jt: SecretStr | None = None
     pipedrive_domain_4x: str = "4xprocess"
     pipedrive_domain_jtip: str = "jtinstrumentacaoeprocessosindustriaisltda"
     pipedrive_pipeline_id: int = Field(default=8, ge=1)
@@ -51,7 +52,10 @@ class Settings(BaseSettings):
 
     @property
     def pipedrive_enabled(self) -> bool:
-        return bool(self.pipedrive_api_token and self.pipedrive_api_token.get_secret_value().strip())
+        return any(
+            token and token.get_secret_value().strip()
+            for token in (self.pipedrive_api_token_4x, self.pipedrive_api_token_jt)
+        )
 
 
 @lru_cache

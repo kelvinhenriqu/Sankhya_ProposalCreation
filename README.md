@@ -7,7 +7,7 @@ Implementação Python/FastAPI do fluxo `PA_Sankhya_GetProposal`. Esta etapa con
 ## Configuração
 
 1. Instale Python 3.11 ou superior.
-2. Preencha `.env` com credenciais Sankhya novas ou rotacionadas. Para habilitar a integração opcional com Pipedrive, preencha também `PIPEDRIVE_API_TOKEN`. Os subdomínios de cada empresa ficam em `PIPEDRIVE_DOMAIN_4X` e `PIPEDRIVE_DOMAIN_JTIP`. Todo negócio criado entra no pipeline configurado em `PIPEDRIVE_PIPELINE_ID` (padrão: `8`), inclusive para propostas JTIP.
+2. Preencha `.env` com credenciais Sankhya novas ou rotacionadas. Para habilitar a integração opcional com Pipedrive, preencha `PIPEDRIVE_API_TOKEN_4X` e `PIPEDRIVE_API_TOKEN_JT` com os tokens das respectivas contas. Os subdomínios de cada empresa ficam em `PIPEDRIVE_DOMAIN_4X` e `PIPEDRIVE_DOMAIN_JTIP`. Todo negócio criado entra no pipeline configurado em `PIPEDRIVE_PIPELINE_ID` (padrão: `8`), inclusive para propostas JTIP.
 3. Instale as dependências. Com `uv`:
 
 ```powershell

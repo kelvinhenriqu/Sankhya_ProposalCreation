@@ -39,10 +39,18 @@ class PipedriveClient:
     def enabled(self) -> bool:
         return self._settings.pipedrive_enabled
 
-    @property
-    def _token(self) -> str:
-        token = self._settings.pipedrive_api_token
+    def _token_for_domain(self, domain: str) -> str:
+        normalized_domain = self._normalize_domain(domain)
+        if normalized_domain == self._normalize_domain(self._settings.pipedrive_domain_4x):
+            token = self._settings.pipedrive_api_token_4x
+        elif normalized_domain == self._normalize_domain(self._settings.pipedrive_domain_jtip):
+            token = self._settings.pipedrive_api_token_jt
+        else:
+            return ""
         return token.get_secret_value().strip() if token else ""
+
+    def enabled_for_domain(self, domain: str) -> bool:
+        return bool(self._token_for_domain(domain))
 
     def domain_for_company(self, company_code: Any, company_name: Any = None) -> str | None:
         code = str(company_code or "").strip()
@@ -59,7 +67,7 @@ class PipedriveClient:
             self._normalize_domain(self._settings.pipedrive_domain_4x),
             self._normalize_domain(self._settings.pipedrive_domain_jtip),
         )
-        return tuple(dict.fromkeys(domain for domain in domains if domain))
+        return tuple(dict.fromkeys(domain for domain in domains if self.enabled_for_domain(domain)))
 
     async def search_deals(self, domain: str, proposal_id: str) -> list[dict[str, Any]]:
         payload = await self._request(
@@ -107,14 +115,14 @@ class PipedriveClient:
 
     async def download_file(self, domain: str, file_id: str) -> bytes:
         """Download an attached PDF without exposing the Pipedrive token to clients."""
-        if not self.enabled:
+        if not self.enabled_for_domain(domain):
             raise PipedriveError("Integracao com Pipedrive nao configurada")
         if self._http is None:
             raise RuntimeError("PipedriveClient nao inicializado")
         try:
             response = await self._http.get(
                 f"https://{domain}.pipedrive.com/api/v1/files/{file_id}/download",
-                params={"api_token": self._token},
+                params={"api_token": self._token_for_domain(domain)},
                 headers={"Accept": "application/pdf"},
                 follow_redirects=True,
             )
@@ -151,14 +159,14 @@ class PipedriveClient:
         return max(candidates, key=lambda file: str(file.get("update_time") or file.get("add_time") or ""))
 
     async def _request(self, method: str, domain: str, path: str, **kwargs: Any) -> dict[str, Any]:
-        if not self.enabled:
+        if not self.enabled_for_domain(domain):
             raise PipedriveError("Integracao com Pipedrive nao configurada")
         if self._http is None:
             raise RuntimeError("PipedriveClient nao inicializado")
         params = dict(kwargs.pop("params", {}))
         # API tokens are the authentication mechanism documented by Pipedrive.
         # Keep this server-side; do not expose it in frontend URLs or responses.
-        params["api_token"] = self._token
+        params["api_token"] = self._token_for_domain(domain)
         try:
             response = await self._http.request(
                 method,
